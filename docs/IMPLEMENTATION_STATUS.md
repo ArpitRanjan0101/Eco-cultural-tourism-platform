@@ -1,0 +1,118 @@
+# Implementation Status
+
+Read this first in every new session. Scope: [architecture/SCOPE_INVENTORY.md](architecture/SCOPE_INVENTORY.md) ·
+design: [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) · decisions/open questions:
+[architecture/DECISIONS.md](architecture/DECISIONS.md).
+
+**Rule:** one phase at a time; the next phase starts only after explicit owner approval.
+
+| Phase | Scope | Status |
+|-------|-------|--------|
+| 0 | Audit, inventories, architecture docs | ✅ Done (2026-10-15) |
+| 1 | Docker, foundation, PostgreSQL/PostGIS, Redis, env validation, health, migrations | ✅ Verified (2026-10-15) |
+| 2 | Auth, JWT, service token wiring, users, roles, permissions | ✅ Verified (2026-10-15) — awaiting approval for Phase 3 |
+| 3 | Geography, destinations, CMS, media, search | ⏳ |
+| 4 | Partners, hotels, inventory, guides, experiences, packages | ⏳ (needs O3, O5) |
+| 5 | Booking engine, concurrency, reservation lifecycle | ⏳ (needs O4) |
+| 6 | Payments, webhooks, cancellations, refunds, reconciliation | ⏳ (blocked on O1 gateway choice) |
+| 7 | BullMQ, outbox, notifications | ⏳ |
+| 8 | Trips, favorites, reviews | ⏳ |
+| 9 | Admin, analytics, audit, settings | ⏳ |
+| 10 | Integration/security testing, API docs, production deployment | ⏳ |
+
+## Phase 1 — delivered
+
+- **Docker:** `backend/Dockerfile` (multi-stage `dev`/`prod`, non-root `node` user, `npm ci` from committed lockfile),
+  `docker-compose.yml` (api, worker, postgres `postgis/postgis:16-3.5`, redis `7.4.2-alpine` AOF + `noeviction`,
+  nginx `1.27.3-alpine`), named volumes `postgres_data`/`redis_data`, `internal` network with no egress and no published DB/Redis ports.
+- **Nginx:** public listener `:80` (host `NGINX_PUBLIC_PORT`) exposes only `/health/live` and `/api/v1/webhooks/payments/*`
+  (POST, rate-limited, inbound service-token header stripped); private listener `:8081` (host `127.0.0.1` only in dev) for the BFF.
+- **Config:** zod-validated env (`src/config/env.js`), fails fast naming keys only; test runs refuse non-`_test` databases;
+  production rejects placeholder secrets and non-https base URL; service-token rotation via `INTERNAL_SERVICE_TOKEN_PREVIOUS`.
+- **Core:** request id, pino logging with secret redaction, `ApiError` + standard error envelope, body-parser / PostgreSQL
+  error mapping, zod `validate()` middleware (`req.valid`), constant-time service-token guard, `withTransaction()` with
+  isolation levels and serialization-retry, helmet, CORS allowlist, `Cache-Control: no-store` on API, graceful shutdown.
+- **Database:** checksummed SQL migration runner with up/down pairs, advisory lock, atomic per-migration transactions;
+  idempotent seed runner; migration `0001_baseline_extensions` (postgis, citext, btree_gist, `set_updated_at()`).
+  DATE → string, NUMERIC → string, session TZ UTC.
+- **Health:** `GET /health/live` (public), `GET /health/ready` and `GET /health/version` (service token). Readiness gates on
+  PostgreSQL, Redis, zero pending migrations; reports worker heartbeat without gating.
+- **Worker:** separate container, same image; Redis heartbeat (`workers:heartbeats` sorted set), graceful shutdown.
+  Queue processors are added in Phases 5–7.
+- **OpenAPI:** zod-to-openapi registry (`src/docs/openapi.js`), served at `GET /api/v1/openapi.json`, exported to `docs/api/openapi.json`.
+
+### Phase 1 verification (executed 2026-10-15)
+
+- `docker compose build` ✅ · `docker compose up -d` → api healthy, worker up, postgres/redis healthy, nginx up ✅
+- `db:migrate` applied 1, re-run no-op ✅ · `db:seed` (no seeds yet) ✅ · `db:status` ✅
+- `npm test` → **30 tests, 30 pass, 0 fail** (unit: env, service token, validation; integration: full rollback/re-apply of
+  all migrations, atomic failed migration, checksum tamper detection, transaction commit/rollback, serializable retry with
+  5 concurrent increments, DATE/NUMERIC parsing, PostGIS distance; API: health, 401/404 envelopes, request id, 400/413 bodies,
+  security headers, CORS) ✅
+- `npm run lint` → 0 problems ✅
+- Host probes: public `:8080` → `/health/live` 200; `/health/ready`, `/api/v1/*` 404. Private `:8081` → `/health/ready` 200
+  with token (db, redis, migrations, worker up); `/api/v1/openapi.json` 401 without token ✅
+- PostgreSQL/Redis have no host port bindings ✅ · prod image runs as `node` without dev deps ✅ · SIGTERM graceful shutdown logged ✅
+
+## Phase 2 — delivered
+
+- **Migrations:** `0002_identity` (9 identity/RBAC tables), `0003_audit_outbox` (append-only `audit_logs`, `outbox_events`),
+  `0004_rbac_catalog` (6 roles, 48 permissions, default grants; super_admin = all).
+- **Auth module** (`modules/auth`): scrypt passwords, HS256 access JWT, opaque rotating refresh tokens (hashed, family reuse
+  detection, absolute expiry), email verification + password reset tokens (hashed, single-use, outbox-queued emails),
+  login lockout, `authenticate` + `requirePermissions` middleware, `sessions.service` for cross-module session revocation.
+- **Users module** (`modules/users`): profile self-service, admin search/detail/status/roles, role/permission management,
+  privileged-account policy, audit records on every admin change.
+- **Audit module** (`modules/audit`): `record()` writer used inside the same transaction as the change.
+- **Core additions:** route-definition helper (`core/http/routes.js`) driving both Express wiring and OpenAPI; Redis rate
+  limiter; `X-Client-Ip` resolution; pagination/sort/LIKE-escape helpers; outbox writer; request context.
+- **Seed:** `001_bootstrap_super_admin` from `BOOTSTRAP_ADMIN_*` (idempotent).
+- **Infra:** nginx strips `X-Client-Ip` publicly and re-resolves the api upstream (`resolve`).
+- Decisions A1–A15 in DECISIONS.md.
+
+### Phase 2 verification (executed 2026-10-15)
+
+- `db:migrate` applied 0002–0004 on the dev DB ✅ · `db:seed` twice (idempotent) ✅
+- `npm test` → **64 tests, 64 pass, 0 fail** — includes register/verify/login/refresh/logout chain, refresh-reuse family
+  revocation, enumeration-safe responses, lockout per account+IP, suspended login, logout vs logout-all, reset/change password
+  session effects, JWT forgery (wrong aud/secret, alg=none, expired), service-token + bearer both required, profile update and
+  phone conflict, 403 on admin routes for tourist/partner, search/filter/sort/pagination, suspension revoking sessions,
+  privileged-target and self-modification protection, delegated roles.assign limits, immediate permission changes,
+  super_admin immutability, audit contents and append-only enforcement, per-IP registration rate limit, and the full
+  migration rollback/re-apply ✅
+- `npm run lint` → 0 problems ✅
+- Via nginx private listener: bootstrap super admin login, `GET /admin/roles` (super_admin 48 permissions), OpenAPI 23 paths /
+  24 operations ✅; public listener returns 404 for `/api/v1/auth/login` ✅
+- Recreating the api container no longer breaks nginx (502 fixed) ✅
+
+## Pending / carried forward
+
+- Phase 10: separate migration-owner and least-privilege runtime DB roles (C17); production compose (no private port publish,
+  TLS, resource limits, log rotation, secrets); backups/restore drill; Swagger UI hosting.
+- Open owner decisions O1–O7 in DECISIONS.md (O1 gateway blocks Phase 6).
+- Phase 3: `user_profiles.avatar_media_id` FK + `avatarMediaId` in `PATCH /users/me`.
+- Phase 7: email delivery for `auth.*` outbox events; scrub `payload.token` after dispatch; retention cleanup job for
+  `auth_login_attempts`, expired refresh/verification tokens.
+- Phase 9: `GET /admin/audit-logs` search over the existing `audit_logs`.
+
+## Commands (host needs Docker only)
+
+```
+cp .env.example .env            # then replace every secret (hex values)
+docker compose build
+docker compose up -d
+docker compose run --rm api npm run db:migrate
+docker compose run --rm api npm run db:seed
+docker compose run --rm api npm run db:status
+docker compose run --rm api npm run db:rollback        # [steps|all]
+docker compose run --rm api npm test
+docker compose run --rm --no-deps api npm run lint
+docker compose run --rm --no-deps -T api node src/docs/generate.js > docs/api/openapi.json   # bash
+docker compose logs -f api worker
+```
+
+Regenerating the lockfile after dependency changes (no host npm):
+`docker run --rm -v "$PWD/backend:/app" -w /app node:22.12.0-bookworm-slim npm install --package-lock-only`
+
+Never run `docker compose down -v` against real data (deletes the database volume).
+The `_test` database is created by `infrastructure/postgres/init` only when the volume is first initialised.

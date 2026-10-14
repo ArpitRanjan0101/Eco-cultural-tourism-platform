@@ -13,7 +13,8 @@ technical clarification applied without changing the report's scope.
 | O4 | Hold duration, partner approval window, payment deadline | Phase 5 | `platform_settings`: hold 15 min, approval 24 h, payment after approval 24 h |
 | O5 | Which supply types each `partner_type` may create | Phase 4 | `accommodation`→properties, `guide`→guides, `operator`→experiences + packages, `multi`→all |
 | O6 | Email provider | Phase 7 | SMTP (any provider); Mailpit container in development |
-| O7 | Object storage provider | Phase 3 | Any S3-compatible service; MinIO container in development |
+| O7 | Object storage provider (production) | Production | Any S3-compatible service (AWS S3, Cloudflare R2, Wasabi…) via `STORAGE_*`; dev uses SeaweedFS (B1) |
+| O8 | Redirects have only admin routes in Report §5.13, so the BFF cannot read them without admin rights | Phase 10 (frontend) | Add public `GET /content/redirects` (service token only) — needs approval as a route outside the register |
 
 ## Clarifications applied
 
@@ -56,6 +57,24 @@ technical clarification applied without changing the report's scope.
 | A13 | `PATCH /users/me` does not accept `avatarMediaId` until the media module exists (Phase 3 adds the FK and field). Registration does not take a phone (avoids enumeration via phone uniqueness); phone is set via `PATCH /users/me` (409 `PHONE_IN_USE`). |
 | A14 | Partner ownership primitives (organisation membership checks) ship with the partner tables in Phase 4. |
 | A15 | nginx re-resolves the `api` upstream via Docker DNS (`resolve`), so recreated containers don't cause 502s. |
+
+## Phase 3 decisions (geography, destinations, CMS, media, search)
+
+| ID | Decision |
+|----|----------|
+| B1 | Dev object storage is **SeaweedFS 3.80** (S3 gateway): MinIO images are no longer pullable from Docker Hub/quay.io. The app speaks generic S3 (AWS SDK v3 pinned 3.723.0, path-style), so production can use any S3 provider. Anonymous identity may only read the public bucket. |
+| B2 | Two-step uploads: `upload-init` reserves a `pending` asset and returns a 10-minute presigned PUT with signed `Content-Type` + `Content-Length`; `upload-complete` checks object size and the **real file signature** (JPEG/PNG/WebP/PDF magic bytes) before marking `ready`; mismatches are rejected and the object deleted. Width/height/resizing are filled by the media-processing job (Phase 7, `media.uploaded` outbox event). |
+| B3 | `media_assets.purpose` (avatar, content_image, supply_image, verification_document) added to the report's field list; purpose fixes visibility, MIME allowlist, size limit and uploader permissions. Public objects are served by URL (CDN-able); private objects only via 5-minute signed URLs to the uploader or `media.manage`. |
+| B4 | Media in use cannot be deleted: link tables use FK `RESTRICT`; CMS JSON references are checked through a registered reference check (409 `MEDIA_IN_USE`). Objects are deleted after the DB commit (orphans are possible, never dangling rows). |
+| B5 | `destinations.published_at` added; `entry_fee` is the standard adult fee in INR (NUMERIC, decimal string in API); `opening_hours` is a strict JSON shape (per-day HH:MM ranges + notes). Publishing requires summary, description, location and ≥1 category (DB CHECK + 422 `PUBLISH_REQUIREMENTS`). Delete = archive. |
+| B6 | Deferred to the owning modules (not stubbed): `/destinations/:slug/experiences`, `/properties`, `/guides` → Phase 4; `/destinations/:slug/reviews` → Phase 8. |
+| B7 | Public destination visibility depends on destination status only; district/region `inactive` hides them from geography listings, not their destinations. |
+| B8 | Search uses PostgreSQL full-text (`search_vector` generated column: name 'simple' A, summary B, description C) + `pg_trgm` fuzzy name matching; no Elasticsearch (Report §1.2). Unified search merges ranked lists over a 500-result window; `type=` pages directly. Searchable types grow with Phase 4 supply. |
+| B9 | CMS sections are an allowlisted registry (hero, rich_text, featured_destinations, category_grid, district_grid, image_gallery, cta_banner, faq). Text is plain/restricted Markdown: HTML tags and `javascript:`/`data:`/`vbscript:` URLs are rejected; links must be `/path` or `https://`. Public rendering resolves media to images and references to live **published** cards only. One homepage document (unique index). |
+| B10 | Reference lists (regions, districts, categories, menus, redirects, announcements) are bounded and returned unpaginated; destinations and CMS pages are paginated. |
+| B11 | Seeds: `002` 5 Jharkhand divisions + 24 districts (approx. HQ coordinates), `003` 10 categories — insert-only. `900_demo_destinations` loads 8 **unverified demo** destinations in non-production only. |
+| B12 | Readiness reports object storage but does not gate on it (like the worker). |
+| B13 | Dev only: SeaweedFS uses `-volume.max=0 -master.volumeSizeLimitMB=256` because each bucket reserves its own volumes. |
 
 ## Technology choices (pinned in package.json / compose)
 

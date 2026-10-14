@@ -1,0 +1,169 @@
+'use strict';
+
+const { randomUUID } = require('node:crypto');
+const { pool } = require('../../config/database');
+const storage = require('../../config/storage');
+const { withTransaction } = require('../../core/database/transaction');
+const { appendOutboxEvent } = require('../../core/events/outbox');
+const ApiError = require('../../core/errors/ApiError');
+const logger = require('../../core/logging/logger');
+const mediaRepository = require('./media.repository');
+const policy = require('./media.policy');
+
+const UPLOAD_URL_TTL_SECONDS = 600;
+const DOWNLOAD_URL_TTL_SECONDS = 300;
+
+// Other modules register checks for references that are not foreign keys (e.g. CMS JSON).
+const referenceChecks = [];
+
+function registerReferenceCheck(check) {
+  referenceChecks.push(check);
+}
+
+const iso = (value) => (value ? value.toISOString() : null);
+
+function toMedia(row, url = row.public_url) {
+  return {
+    id: row.id,
+    purpose: row.purpose,
+    visibility: row.visibility,
+    status: row.status,
+    mimeType: row.mime_type,
+    fileSize: Number(row.file_size),
+    width: row.width,
+    height: row.height,
+    altText: row.alt_text,
+    url: url ?? null,
+    createdAt: iso(row.created_at),
+  };
+}
+
+const location = (row) => ({ visibility: row.visibility, key: row.storage_key });
+const notFound = () => ApiError.notFound('Media not found', 'MEDIA_NOT_FOUND');
+
+/** Step 1: reserve an asset and return a short-lived presigned PUT URL. */
+async function initUpload(actor, { purpose, mimeType, fileSize, altText }) {
+  policy.assertCanUpload(actor, purpose, { mimeType, fileSize });
+  const { visibility } = policy.PURPOSES[purpose];
+  const id = randomUUID();
+  const now = new Date();
+  const storageKey = `${purpose}/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}/${id}.${policy.EXTENSIONS[mimeType]}`;
+
+  const row = await mediaRepository.insert(pool, { id, uploadedBy: actor.actorUserId, purpose, storageKey, mimeType, fileSize, altText, visibility });
+  const uploadUrl = await storage.presignUpload({
+    visibility,
+    key: storageKey,
+    contentType: mimeType,
+    contentLength: fileSize,
+    expiresIn: UPLOAD_URL_TTL_SECONDS,
+  });
+  return {
+    media: toMedia(row, null),
+    upload: {
+      method: 'PUT',
+      url: uploadUrl,
+      headers: { 'Content-Type': mimeType, 'Content-Length': String(fileSize) },
+      expiresAt: new Date(Date.now() + UPLOAD_URL_TTL_SECONDS * 1000).toISOString(),
+    },
+  };
+}
+
+/**
+ * Step 2: verify the uploaded object (exists, declared size/type, real file signature)
+ * before it becomes usable. Invalid uploads are rejected and the object removed.
+ */
+async function completeUpload(actor, { mediaId }) {
+  const media = await mediaRepository.findById(pool, mediaId);
+  if (!media || media.uploaded_by !== actor.actorUserId) throw notFound();
+  if (media.status === 'ready') return toMedia(media);
+  if (media.status !== 'pending') throw ApiError.conflict('This upload was rejected; start a new upload', 'UPLOAD_REJECTED');
+
+  const head = await storage.headObject(location(media));
+  if (!head) throw ApiError.conflict('The file has not been uploaded yet', 'UPLOAD_NOT_FOUND');
+
+  const sniffed = policy.sniffMimeType(await storage.readPrefix(location(media)));
+  const problems = [];
+  if (head.contentLength !== Number(media.file_size)) problems.push('size does not match the declared fileSize');
+  if (sniffed !== media.mime_type) problems.push('file content does not match the declared mimeType');
+  if (problems.length > 0) {
+    await mediaRepository.markRejected(pool, media.id);
+    await storage.deleteObject(location(media)).catch((err) => logger.warn({ err: { message: err.message }, mediaId }, 'Failed to delete rejected upload'));
+    throw new ApiError(422, 'UPLOAD_INVALID', 'Uploaded file failed verification', problems);
+  }
+
+  const ready = await withTransaction(async (client) => {
+    const row = await mediaRepository.markReady(client, media.id, media.visibility === 'public' ? storage.publicUrl(media.storage_key) : null);
+    await appendOutboxEvent(client, {
+      eventType: 'media.uploaded',
+      aggregateType: 'media_asset',
+      aggregateId: media.id,
+      payload: { mediaId: media.id, purpose: media.purpose, mimeType: media.mime_type },
+    });
+    return row;
+  });
+  return toMedia(ready);
+}
+
+/** Public assets are visible to any signed-in user; private ones only to the uploader or a media manager. */
+async function getMedia(actor, id) {
+  const media = await mediaRepository.findById(pool, id);
+  if (!media) throw notFound();
+  if (media.visibility === 'public' && media.status === 'ready') return toMedia(media);
+  if (!policy.canManage(actor, media)) throw notFound();
+  if (media.status !== 'ready') return toMedia(media, null);
+  const url = await storage.presignDownload({ ...location(media), expiresIn: DOWNLOAD_URL_TTL_SECONDS });
+  return toMedia(media, url);
+}
+
+/** Deletes an asset nothing references. Link tables use FK RESTRICT; JSON references use registered checks. */
+async function deleteMedia(actor, id) {
+  const media = await withTransaction(async (client) => {
+    const row = await mediaRepository.findById(client, id, { forUpdate: true });
+    if (!row || !policy.canManage(actor, row)) throw notFound();
+    for (const isReferenced of referenceChecks) {
+      if (await isReferenced(client, id)) throw ApiError.conflict('Media is still in use', 'MEDIA_IN_USE');
+    }
+    try {
+      await mediaRepository.deleteById(client, id);
+    } catch (err) {
+      if (err.code === '23503') throw ApiError.conflict('Media is still in use', 'MEDIA_IN_USE');
+      throw err;
+    }
+    return row;
+  });
+  // After commit: a failed object delete leaves an orphan object, never a dangling row.
+  await storage.deleteObject(location(media)).catch((err) => logger.warn({ err: { message: err.message }, mediaId: id }, 'Orphaned media object'));
+}
+
+// ---- Interfaces for other modules ----
+
+/**
+ * Validates that `mediaId` may be attached by the actor: ready, one of `purposes`,
+ * and uploaded by the actor unless they manage media. Returns the asset DTO.
+ */
+async function assertAttachable(db, actor, mediaId, { purposes }) {
+  const media = await mediaRepository.findById(db, mediaId);
+  const invalid = (message) => ApiError.validation([{ location: 'body', path: 'mediaId', message }]);
+  if (!media || !policy.canManage(actor, media)) throw invalid('media not found');
+  if (media.status !== 'ready') throw invalid('media upload is not complete');
+  if (!purposes.includes(media.purpose)) throw invalid(`media must be one of: ${purposes.join(', ')}`);
+  return toMedia(media);
+}
+
+/** Map of id -> public media DTO for ready public assets (missing ids are omitted). */
+async function getPublicMediaMap(ids, db = pool) {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (unique.length === 0) return new Map();
+  const rows = await mediaRepository.findReadyByIds(db, unique);
+  return new Map(rows.filter((row) => row.visibility === 'public').map((row) => [row.id, toMedia(row)]));
+}
+
+module.exports = {
+  initUpload,
+  completeUpload,
+  getMedia,
+  deleteMedia,
+  assertAttachable,
+  getPublicMediaMap,
+  registerReferenceCheck,
+};

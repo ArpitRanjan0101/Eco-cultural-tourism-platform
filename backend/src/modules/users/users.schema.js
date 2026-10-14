@@ -19,6 +19,7 @@ const idParams = z.object({ id: z.string().uuid() });
 const profileSchema = z
   .object({
     avatarMediaId: z.string().uuid().nullable(),
+    avatarUrl: z.string().url().nullable(),
     preferredLanguage: z.string().nullable(),
     country: z.string().nullable(),
     state: z.string().nullable(),
@@ -65,6 +66,7 @@ const updateMeBody = z
       .trim()
       .regex(/^\+[1-9][0-9]{7,14}$/, 'phone must be E.164, e.g. +919876543210')
       .nullable(),
+    avatarMediaId: z.string().uuid().nullable(),
     preferredLanguage: z
       .string()
       .regex(/^[a-z]{2,3}(-[A-Z]{2})?$/, 'language must look like "en" or "hi-IN"')

@@ -5,6 +5,7 @@ function requestContext(req) {
   return {
     actorUserId: req.auth?.userId ?? null,
     actorRoles: req.auth?.roles ?? [],
+    actorPermissions: req.auth?.permissions ?? [],
     sessionId: req.auth?.sessionId ?? null,
     ip: req.clientIp ?? req.ip ?? null,
     requestId: req.id,

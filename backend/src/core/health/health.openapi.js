@@ -38,7 +38,13 @@ function register(registry) {
             schema: successEnvelope(
               z.object({
                 status: z.literal('ready'),
-                checks: z.object({ database: checkSchema, redis: checkSchema, migrations: checkSchema, worker: checkSchema }),
+                checks: z.object({
+                  database: checkSchema,
+                  redis: checkSchema,
+                  migrations: checkSchema,
+                  worker: checkSchema,
+                  storage: checkSchema,
+                }),
               }),
             ),
           },

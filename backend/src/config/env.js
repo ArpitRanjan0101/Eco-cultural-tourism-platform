@@ -49,6 +49,18 @@ const envSchema = z
     EMAIL_VERIFICATION_TTL_HOURS: z.coerce.number().int().min(1).max(168).default(24),
     PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().min(5).max(240).default(30),
 
+    // S3-compatible object storage. The API talks to STORAGE_ENDPOINT on the private network;
+    // presigned upload/download URLs are signed for STORAGE_PUBLIC_ENDPOINT (reachable by browsers).
+    STORAGE_ENDPOINT: z.string().url(),
+    STORAGE_PUBLIC_ENDPOINT: z.string().url(),
+    STORAGE_REGION: z.string().min(1).default('us-east-1'),
+    STORAGE_ACCESS_KEY: z.string().min(8),
+    STORAGE_SECRET_KEY: z.string().min(16),
+    STORAGE_PUBLIC_BUCKET: z.string().regex(/^[a-z0-9][a-z0-9.-]{2,62}$/),
+    STORAGE_PRIVATE_BUCKET: z.string().regex(/^[a-z0-9][a-z0-9.-]{2,62}$/),
+    STORAGE_PUBLIC_BASE_URL: z.string().url(),
+    STORAGE_FORCE_PATH_STYLE: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
+
     // Optional first super-admin created by `npm run db:seed`.
     BOOTSTRAP_ADMIN_EMAIL: z.string().trim().toLowerCase().email().optional().or(z.literal('').transform(() => undefined)),
     BOOTSTRAP_ADMIN_NAME: z.string().trim().max(150).optional(),
@@ -79,6 +91,9 @@ const envSchema = z
         if (env[key] && PLACEHOLDER.test(env[key])) {
           ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: `${key} is a placeholder value` });
         }
+      }
+      if (PLACEHOLDER.test(env.STORAGE_SECRET_KEY)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['STORAGE_SECRET_KEY'], message: 'STORAGE_SECRET_KEY is a placeholder value' });
       }
       if (!env.PUBLIC_BASE_URL.startsWith('https://')) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['PUBLIC_BASE_URL'], message: 'must use https in production' });
@@ -117,6 +132,17 @@ function parseEnv(source) {
       refreshTtlDays: env.REFRESH_TOKEN_TTL_DAYS,
       emailVerificationTtlHours: env.EMAIL_VERIFICATION_TTL_HOURS,
       passwordResetTtlMinutes: env.PASSWORD_RESET_TTL_MINUTES,
+    },
+    storage: {
+      endpoint: env.STORAGE_ENDPOINT,
+      publicEndpoint: env.STORAGE_PUBLIC_ENDPOINT,
+      region: env.STORAGE_REGION,
+      accessKey: env.STORAGE_ACCESS_KEY,
+      secretKey: env.STORAGE_SECRET_KEY,
+      publicBucket: env.STORAGE_PUBLIC_BUCKET,
+      privateBucket: env.STORAGE_PRIVATE_BUCKET,
+      publicBaseUrl: env.STORAGE_PUBLIC_BASE_URL.replace(/\/+$/, ''),
+      forcePathStyle: env.STORAGE_FORCE_PATH_STYLE,
     },
     bootstrapAdmin: env.BOOTSTRAP_ADMIN_EMAIL
       ? { email: env.BOOTSTRAP_ADMIN_EMAIL, password: env.BOOTSTRAP_ADMIN_PASSWORD, fullName: env.BOOTSTRAP_ADMIN_NAME || 'Platform Administrator' }

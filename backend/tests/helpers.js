@@ -16,10 +16,43 @@ async function migrateTestDatabase() {
   await new Migrator({ db: pool }).migrate();
 }
 
-/** Clears mutable identity/ops data; the RBAC catalog (migration data) is kept. */
+/** Clears mutable data; the RBAC catalog (migration data) is kept. */
 async function resetData() {
-  await pool.query('TRUNCATE users, auth_login_attempts, outbox_events CASCADE');
+  await pool.query(`TRUNCATE users, auth_login_attempts, outbox_events, regions, destination_categories,
+                    cms_pages, cms_menus, cms_redirects, cms_announcements CASCADE`);
   await getRedis().flushdb(); // test Redis database only (REDIS_URL=…/1)
+}
+
+/** Loads the real Jharkhand regions/districts/categories seeds. */
+async function seedReference() {
+  await withTransaction(async (client) => {
+    await require('../src/database/seeds/002_jharkhand_geography').run(client);
+    await require('../src/database/seeds/003_destination_categories').run(client);
+  });
+}
+
+async function ensureTestBuckets() {
+  await require('../src/config/storage').ensureBuckets();
+}
+
+// Minimal valid file bodies for signature sniffing.
+const FILES = {
+  'image/png': Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(56, 1)]),
+  'image/jpeg': Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(60, 2)]),
+  'application/pdf': Buffer.concat([Buffer.from('%PDF-1.7\n'), Buffer.alloc(55, 3)]),
+};
+
+/** Full upload flow as a browser + BFF would do it. Returns the completed media DTO. */
+async function uploadMedia(app, token, { purpose = 'content_image', mimeType = 'image/png', body } = {}) {
+  const content = body ?? FILES[mimeType];
+  const as = api(app, { token });
+  const init = await as.post('/media/upload-init').send({ purpose, mimeType, fileSize: content.length });
+  if (init.status !== 201) throw new Error(`upload-init failed: ${init.status} ${JSON.stringify(init.body)}`);
+  const { url, headers } = init.body.data.upload;
+  const put = await fetch(url, { method: 'PUT', headers, body: content });
+  if (!put.ok) throw new Error(`object PUT failed: ${put.status} ${await put.text()}`);
+  const done = await as.post('/media/upload-complete').send({ mediaId: init.body.data.media.id });
+  return { status: done.status, body: done.body, media: done.body.data, mediaId: init.body.data.media.id };
 }
 
 async function closeConnections() {
@@ -76,6 +109,10 @@ module.exports = {
   DEFAULT_PASSWORD,
   migrateTestDatabase,
   resetData,
+  seedReference,
+  ensureTestBuckets,
+  uploadMedia,
+  FILES,
   closeConnections,
   createUser,
   api,

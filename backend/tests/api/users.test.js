@@ -36,7 +36,14 @@ describe('self-service profile', () => {
       .expect(200);
     assert.equal(res.body.data.fullName, 'Birsa Oraon');
     assert.equal(res.body.data.phoneVerified, false);
-    assert.deepEqual(res.body.data.profile, { avatarMediaId: null, preferredLanguage: 'hi-IN', country: 'IN', state: 'Jharkhand', city: 'Ranchi' });
+    assert.deepEqual(res.body.data.profile, {
+      avatarMediaId: null,
+      avatarUrl: null,
+      preferredLanguage: 'hi-IN',
+      country: 'IN',
+      state: 'Jharkhand',
+      city: 'Ranchi',
+    });
 
     res = await me.as.patch('/users/me').send({ city: null }).expect(200);
     assert.equal(res.body.data.profile.city, null);

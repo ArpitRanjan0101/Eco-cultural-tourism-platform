@@ -1,0 +1,63 @@
+'use strict';
+
+const ApiError = require('../../core/errors/ApiError');
+
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MB = 1024 * 1024;
+
+/**
+ * Upload purposes. Each fixes visibility, accepted types and size, and who may upload.
+ * `anyPermission`: the uploader needs at least one of these (in addition to media.upload).
+ */
+const PURPOSES = {
+  avatar: { visibility: 'public', mimeTypes: IMAGE_TYPES, maxBytes: 5 * MB, anyPermission: ['media.upload'] },
+  content_image: {
+    visibility: 'public',
+    mimeTypes: IMAGE_TYPES,
+    maxBytes: 15 * MB,
+    anyPermission: ['media.manage', 'cms.manage', 'destinations.manage'],
+  },
+  supply_image: {
+    visibility: 'public',
+    mimeTypes: IMAGE_TYPES,
+    maxBytes: 15 * MB,
+    anyPermission: ['properties.manage.own', 'guides.manage.own', 'experiences.manage.own', 'packages.manage.own', 'media.manage'],
+  },
+  verification_document: {
+    visibility: 'private',
+    mimeTypes: [...IMAGE_TYPES, 'application/pdf'],
+    maxBytes: 10 * MB,
+    anyPermission: ['partners.apply', 'partners.manage.own', 'guides.manage.own'],
+  },
+};
+
+const EXTENSIONS = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf' };
+
+const hasAny = (permissions, codes) => codes.some((code) => permissions.includes(code));
+
+function assertCanUpload(actor, purpose, { mimeType, fileSize }) {
+  const rule = PURPOSES[purpose];
+  if (!hasAny(actor.actorPermissions, rule.anyPermission)) {
+    throw ApiError.forbidden(`You are not allowed to upload ${purpose} files`);
+  }
+  if (!rule.mimeTypes.includes(mimeType)) {
+    throw ApiError.validation([{ location: 'body', path: 'mimeType', message: `${purpose} accepts ${rule.mimeTypes.join(', ')}` }]);
+  }
+  if (fileSize > rule.maxBytes) {
+    throw ApiError.validation([{ location: 'body', path: 'fileSize', message: `${purpose} files are limited to ${rule.maxBytes / MB} MB` }]);
+  }
+}
+
+/** The uploader, or a media manager, controls an asset. */
+const canManage = (actor, media) => media.uploaded_by === actor.actorUserId || actor.actorPermissions.includes('media.manage');
+
+/** Identifies the real file type from its leading bytes (the declared Content-Type is not trusted). */
+function sniffMimeType(bytes) {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
+  if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
+  if (bytes.length >= 12 && bytes.toString('latin1', 0, 4) === 'RIFF' && bytes.toString('latin1', 8, 12) === 'WEBP') return 'image/webp';
+  if (bytes.length >= 5 && bytes.toString('latin1', 0, 5) === '%PDF-') return 'application/pdf';
+  return null;
+}
+
+module.exports = { PURPOSES, EXTENSIONS, assertCanUpload, canManage, sniffMimeType };

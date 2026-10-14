@@ -13,6 +13,13 @@ const base = {
   REDIS_URL: 'redis://:p@redis:6379/0',
   INTERNAL_SERVICE_TOKEN: TOKEN,
   JWT_ACCESS_SECRET: 'j'.repeat(64),
+  STORAGE_ENDPOINT: 'http://storage:8333',
+  STORAGE_PUBLIC_ENDPOINT: 'http://localhost:8333',
+  STORAGE_ACCESS_KEY: 'accesskey123',
+  STORAGE_SECRET_KEY: 's'.repeat(40),
+  STORAGE_PUBLIC_BUCKET: 'tourism-public',
+  STORAGE_PRIVATE_BUCKET: 'tourism-private',
+  STORAGE_PUBLIC_BASE_URL: 'http://localhost:8333/tourism-public/',
 };
 
 describe('parseEnv', () => {
@@ -21,6 +28,8 @@ describe('parseEnv', () => {
     assert.equal(config.port, 4000);
     assert.deepEqual(config.corsOrigins, ['http://localhost:3000', 'http://localhost:3001']);
     assert.deepEqual(config.serviceTokens, [TOKEN]);
+    assert.equal(config.storage.publicBaseUrl, 'http://localhost:8333/tourism-public');
+    assert.equal(config.storage.forcePathStyle, true);
     assert.ok(Object.isFrozen(config));
   });
 

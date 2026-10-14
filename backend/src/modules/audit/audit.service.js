@@ -1,5 +1,7 @@
 'use strict';
 
+const { withTransaction } = require('../../core/database/transaction');
+const { translateUniqueViolation } = require('../../core/errors/dbErrors');
 const auditRepository = require('./audit.repository');
 
 /**
@@ -20,4 +22,23 @@ async function record(db, ctx, { action, entityType, entityId, oldValues, newVal
   });
 }
 
-module.exports = { record };
+/**
+ * Runs an administrative mutation and its audit record in one transaction.
+ * `mutate(client)` returns { entityId, action, oldValues, newValues }; nothing is
+ * audited when newValues is empty (no-op update). Unique violations become 409s.
+ */
+async function auditedTransaction(ctx, entityType, mutate) {
+  try {
+    return await withTransaction(async (client) => {
+      const { entityId, action, oldValues = null, newValues = {} } = await mutate(client);
+      if (action && Object.keys(newValues).length > 0) {
+        await record(client, ctx, { action, entityType, entityId, oldValues, newValues });
+      }
+      return entityId;
+    });
+  } catch (err) {
+    throw translateUniqueViolation(err, entityType.replace(/_/g, ' '));
+  }
+}
+
+module.exports = { record, auditedTransaction };

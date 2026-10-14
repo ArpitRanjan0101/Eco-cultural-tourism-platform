@@ -9,6 +9,7 @@ const rolesRepository = require('./roles.repository');
 const policy = require('./users.policy');
 const auditService = require('../audit/audit.service');
 const sessionsService = require('../auth/sessions.service');
+const mediaService = require('../media/media.service');
 
 const DEFAULT_ROLE = 'tourist';
 
@@ -30,11 +31,13 @@ function toUserSummary(row) {
   };
 }
 
-function toUser(row) {
+async function toUser(row) {
+  const avatar = row.avatar_media_id ? (await mediaService.getPublicMediaMap([row.avatar_media_id])).get(row.avatar_media_id) : null;
   return {
     ...toUserSummary(row),
     profile: {
       avatarMediaId: row.avatar_media_id,
+      avatarUrl: avatar?.url ?? null,
       preferredLanguage: row.preferred_language,
       country: row.country,
       state: row.state,
@@ -111,6 +114,11 @@ async function updateMe(userId, changes) {
   try {
     await withTransaction(async (client) => {
       await requireUser(client, userId, { forUpdate: true });
+      if (changes.avatarMediaId) {
+        await mediaService.assertAttachable(client, { actorUserId: userId, actorPermissions: [] }, changes.avatarMediaId, {
+          purposes: ['avatar'],
+        });
+      }
       await usersRepository.updateAccount(client, userId, { fullName: changes.fullName, phone: changes.phone });
       await usersRepository.updateProfile(client, userId, changes);
     });

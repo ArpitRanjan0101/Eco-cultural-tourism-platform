@@ -42,8 +42,8 @@ Phase = phase of the agreed working method in which the item is delivered.
 - [x] auth_refresh_tokens · [x] auth_verification_tokens · [x] auth_login_attempts
 
 ### 4.2 Geography & destinations (8) — Phase 3
-- [ ] regions · [ ] districts · [ ] destinations · [ ] destination_categories · [ ] destination_category_links
-- [ ] destination_media · [ ] destination_faqs · [ ] destination_related_places
+- [x] regions · [x] districts · [x] destinations · [x] destination_categories · [x] destination_category_links
+- [x] destination_media · [x] destination_faqs · [x] destination_related_places
 
 ### 4.3 Experiences (3) — Phase 4
 - [ ] experiences · [ ] experience_media · [ ] experience_sessions
@@ -77,8 +77,8 @@ Phase = phase of the agreed working method in which the item is delivered.
 - [ ] reviews · [ ] favorites
 
 ### 4.12 CMS & media (7) — Phase 3
-- [ ] media_assets · [ ] cms_pages · [ ] cms_page_sections · [ ] cms_menus · [ ] cms_menu_items
-- [ ] cms_redirects · [ ] cms_announcements
+- [x] media_assets · [x] cms_pages · [x] cms_page_sections · [x] cms_menus · [x] cms_menu_items
+- [x] cms_redirects · [x] cms_announcements
 
 ### 4.13 Notifications, audit, operations (7)
 - [ ] notification_templates (7) · [ ] notifications (7) · [ ] notification_deliveries (7)
@@ -103,7 +103,7 @@ PUT  /admin/users/:id/roles    GET  /admin/roles            GET  /admin/permissi
 PUT  /admin/roles/:id/permissions
 ```
 
-### 5.2 Geography & destinations (36) — Phase 3
+### 5.2 Geography & destinations (36) — Phase 3 — [~] 32 implemented; 4 deferred (experiences/properties/guides → P4, reviews → P8)
 ```
 GET /regions  GET /districts  GET /districts/:slug  GET /districts/:slug/destinations
 GET /destination-categories  GET /destinations  GET /destinations/featured
@@ -176,7 +176,7 @@ POST /trips/:id/days/:dayId/stops  PATCH|DELETE /trips/:id/stops/:stopId
 PATCH /trips/:id/stops/reorder
 ```
 
-### 5.8 Search (4) — Phase 3
+### 5.8 Search (4) — Phase 3 — [x] all 4 (destination + district types; supply types join in P4)
 ```
 GET /search  GET /search/suggestions  GET /search/nearby  GET /search/filters
 ```
@@ -213,7 +213,7 @@ GET|POST /favorites  DELETE /favorites/:type/:id
 GET /admin/reviews  PATCH /admin/reviews/:id/status
 ```
 
-### 5.13 CMS & media (25) — Phase 3
+### 5.13 CMS & media (25) — Phase 3 — [x] all 25
 ```
 GET /content/pages/:slug  GET /content/homepage  GET /content/menus/:code  GET /content/announcements
 GET|POST /admin/cms/pages  GET|PATCH|DELETE /admin/cms/pages/:id
@@ -252,6 +252,6 @@ GET|PATCH /admin/settings  GET /admin/audit-logs
 - [ ] Payment after hold expiry reconciles without overbooking (6)
 - [ ] Refund failure/retry/duplicate callback → single refund (6)
 - [ ] Partner cannot alter another partner's inventory or booking financials (4/5)
-- [ ] CMS draft hidden; published section serialised safely (3)
+- [x] CMS draft hidden; published section serialised safely (3)
 - [ ] Worker/API restart does not lose outbox events (7)
 - [ ] Backup restore keeps transactional records + media references (10)

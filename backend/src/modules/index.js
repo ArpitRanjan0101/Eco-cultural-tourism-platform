@@ -3,5 +3,18 @@
 // Ordered route definitions of every delivered module (static paths before params).
 const authRoutes = require('./auth/auth.routes');
 const usersRoutes = require('./users/users.routes');
+const mediaRoutes = require('./media/media.routes');
+const geographyRoutes = require('./geography/geography.routes');
+const destinationsRoutes = require('./destinations/destinations.routes');
+const cmsRoutes = require('./cms/cms.routes');
+const searchRoutes = require('./search/search.routes');
 
-module.exports = [...authRoutes, ...usersRoutes];
+module.exports = [
+  ...authRoutes,
+  ...usersRoutes,
+  ...mediaRoutes,
+  ...geographyRoutes,
+  ...destinationsRoutes,
+  ...cmsRoutes,
+  ...searchRoutes,
+];

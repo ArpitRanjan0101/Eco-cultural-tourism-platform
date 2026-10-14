@@ -10,8 +10,8 @@ design: [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) · decision
 |-------|-------|--------|
 | 0 | Audit, inventories, architecture docs | ✅ Done (2026-10-15) |
 | 1 | Docker, foundation, PostgreSQL/PostGIS, Redis, env validation, health, migrations | ✅ Verified (2026-10-15) |
-| 2 | Auth, JWT, service token wiring, users, roles, permissions | ✅ Verified (2026-10-15) — awaiting approval for Phase 3 |
-| 3 | Geography, destinations, CMS, media, search | ⏳ |
+| 2 | Auth, JWT, service token wiring, users, roles, permissions | ✅ Verified (2026-10-15) |
+| 3 | Geography, destinations, CMS, media, search | ✅ Verified (2026-10-15) — awaiting approval for Phase 4 |
 | 4 | Partners, hotels, inventory, guides, experiences, packages | ⏳ (needs O3, O5) |
 | 5 | Booking engine, concurrency, reservation lifecycle | ⏳ (needs O4) |
 | 6 | Payments, webhooks, cancellations, refunds, reconciliation | ⏳ (blocked on O1 gateway choice) |
@@ -85,12 +85,45 @@ design: [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) · decision
   24 operations ✅; public listener returns 404 for `/api/v1/auth/login` ✅
 - Recreating the api container no longer breaks nginx (502 fixed) ✅
 
+## Phase 3 — delivered
+
+- **Migrations:** `0005_media_assets` (+ `pg_trgm`, avatar FK), `0006_geography_destinations` (8 tables, GiST/GIN/FTS
+  indexes, publish CHECK), `0007_cms` (6 CMS tables, single-homepage index).
+- **Storage:** `config/storage.js` (internal + presign S3 clients), `npm run storage:init`, SeaweedFS `storage` service with
+  anonymous read on public buckets only (B1, B13).
+- **Modules:** `media` (two-step verified uploads, private signed URLs, reference-safe delete), `geography` (regions,
+  districts), `destinations` (destinations, categories, gallery, FAQs, related, nearby, FTS), `cms` (allowlisted sections,
+  public rendering, menus, redirects, announcements), `search` (unified, suggestions, nearby, filters). Users: `avatarMediaId`
+  + `avatarUrl`.
+- **Core:** `fields.js` (shared validators), `sql.js` (allowlisted UPDATE builder, PostGIS point, audit diff),
+  `dbErrors.js`, `slug.js`; `audit.auditedTransaction()` used by all admin mutations.
+- **Seeds:** `002_jharkhand_geography`, `003_destination_categories`, `900_demo_destinations` (non-production, unverified).
+- Decisions B1–B13; open O8 (public redirects read route).
+
+### Phase 3 verification (executed 2026-10-15)
+
+- `db:migrate` applied 0005–0007 ✅ · `storage:init` created buckets ✅ · `db:seed` (4 files) ✅
+- `npm test` → **86 tests, 86 pass, 0 fail** — adds: purpose permission/type/size limits; real presigned upload to SeaweedFS
+  and anonymous public read; signature-mismatch rejection; size-tampered PUT refused; private document signed URL (owner/
+  admin only, unsigned denied); avatar set + in-use delete 409; 24 seeded districts/5 regions; inactive district hidden;
+  audited admin geography with 409 slug conflicts; draft→publish requirements→archive; gallery/cover/FAQ/related (drafts
+  hidden); list filters/sort/pagination; PostGIS nearby ordering; permission splits (read/manage/publish, cms.publish);
+  section allowlist rejecting HTML/`javascript:`/protocol-relative links/unknown ids; draft pages hidden; homepage render
+  with resolved media and published-only cards; CMS-referenced media protected; menu tree with disabled branch hidden;
+  redirects; announcement windows; unified/typed/fuzzy search, suggestions, nearby, facets; full 7-migration rollback ✅
+- `npm run lint` → 0 problems ✅ · OpenAPI: 70 paths / 85 operations ✅
+- Host E2E via nginx `:8081`: admin login → upload-init (URL signed for `localhost:8333`) → `curl` PUT 200 → complete
+  `ready` → anonymous public GET 200 → delete 204; demo destinations list/nearby/search ✅
+
 ## Pending / carried forward
 
 - Phase 10: separate migration-owner and least-privilege runtime DB roles (C17); production compose (no private port publish,
   TLS, resource limits, log rotation, secrets); backups/restore drill; Swagger UI hosting.
 - Open owner decisions O1–O7 in DECISIONS.md (O1 gateway blocks Phase 6).
-- Phase 3: `user_profiles.avatar_media_id` FK + `avatarMediaId` in `PATCH /users/me`.
+- Phase 4: `/destinations/:slug/{experiences,properties,guides}`; add supply types to search/nearby; partner reviewers'
+  access to private verification documents.
+- Phase 7: media-processing job (dimensions, resizing) on `media.uploaded`; cleanup of stale `pending` uploads.
+- Phase 8: `/destinations/:slug/reviews`.
 - Phase 7: email delivery for `auth.*` outbox events; scrub `payload.token` after dispatch; retention cleanup job for
   `auth_login_attempts`, expired refresh/verification tokens.
 - Phase 9: `GET /admin/audit-logs` search over the existing `audit_logs`.
@@ -102,6 +135,7 @@ cp .env.example .env            # then replace every secret (hex values)
 docker compose build
 docker compose up -d
 docker compose run --rm api npm run db:migrate
+docker compose run --rm api npm run storage:init        # create media buckets (idempotent)
 docker compose run --rm api npm run db:seed
 docker compose run --rm api npm run db:status
 docker compose run --rm api npm run db:rollback        # [steps|all]

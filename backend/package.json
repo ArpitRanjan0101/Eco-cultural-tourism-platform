@@ -14,12 +14,15 @@
     "db:rollback": "node src/database/cli.js rollback",
     "db:status": "node src/database/cli.js status",
     "db:seed": "node src/database/cli.js seed",
+    "storage:init": "node src/database/storage-init.js",
     "openapi:generate": "node src/docs/generate.js",
     "lint": "eslint .",
-    "test": "NODE_ENV=test DATABASE_URL=$TEST_DATABASE_URL REDIS_URL=$TEST_REDIS_URL node --test --test-concurrency=1 \"tests/**/*.test.js\""
+    "test": "NODE_ENV=test DATABASE_URL=$TEST_DATABASE_URL REDIS_URL=$TEST_REDIS_URL STORAGE_PUBLIC_BASE_URL=$STORAGE_ENDPOINT/$STORAGE_PUBLIC_BUCKET-test STORAGE_PUBLIC_BUCKET=$STORAGE_PUBLIC_BUCKET-test STORAGE_PRIVATE_BUCKET=$STORAGE_PRIVATE_BUCKET-test STORAGE_PUBLIC_ENDPOINT=$STORAGE_ENDPOINT node --test --test-concurrency=1 \"tests/**/*.test.js\""
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "7.3.0",
+    "@aws-sdk/client-s3": "3.723.0",
+    "@aws-sdk/s3-request-presigner": "3.723.0",
     "cors": "2.8.5",
     "express": "5.1.0",
     "helmet": "8.1.0",

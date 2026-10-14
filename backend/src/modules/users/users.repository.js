@@ -96,7 +96,13 @@ async function updateAccount(db, id, { fullName, phone }) {
   await db.query(`UPDATE users SET ${sets.join(', ')} WHERE id = $1`, values);
 }
 
-const PROFILE_COLUMNS = { preferredLanguage: 'preferred_language', country: 'country', state: 'state', city: 'city' };
+const PROFILE_COLUMNS = {
+  avatarMediaId: 'avatar_media_id',
+  preferredLanguage: 'preferred_language',
+  country: 'country',
+  state: 'state',
+  city: 'city',
+};
 
 async function updateProfile(db, userId, fields) {
   const entries = Object.entries(PROFILE_COLUMNS).filter(([key]) => fields[key] !== undefined);

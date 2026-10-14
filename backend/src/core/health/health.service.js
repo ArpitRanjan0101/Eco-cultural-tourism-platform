@@ -6,6 +6,7 @@ const { pool } = require('../../config/database');
 const { getRedis } = require('../../config/redis');
 const { Migrator } = require('../../database/migrator');
 const { countLiveWorkers } = require('../../jobs/heartbeat');
+const storage = require('../../config/storage');
 
 const CHECK_TIMEOUT_MS = 2_000;
 
@@ -32,7 +33,7 @@ async function checkReadiness() {
   const redis = getRedis();
   const migrator = new Migrator({ db: pool });
 
-  const [database, cache, migrations, worker] = await Promise.all([
+  const [database, cache, migrations, worker, objectStorage] = await Promise.all([
     runCheck(async () => {
       await pool.query('SELECT 1');
     }),
@@ -49,12 +50,15 @@ async function checkReadiness() {
       if (live === 0) throw Object.assign(new Error('no workers'), { reason: 'no live worker heartbeat' });
       return { live };
     }),
+    runCheck(async () => {
+      await storage.checkBuckets();
+    }),
   ]);
 
-  // The worker is reported but does not gate API readiness: the API can serve
-  // requests while jobs queue up, and Redis/PostgreSQL remain the source of truth.
+  // Worker and object storage are reported but do not gate API readiness: browsing,
+  // auth and bookings keep working while jobs queue up or uploads are unavailable.
   const ready = [database, cache, migrations].every((check) => check.status === 'up');
-  return { ready, checks: { database, redis: cache, migrations, worker } };
+  return { ready, checks: { database, redis: cache, migrations, worker, storage: objectStorage } };
 }
 
 function getVersion() {

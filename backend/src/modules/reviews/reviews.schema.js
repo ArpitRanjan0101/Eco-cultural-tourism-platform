@@ -4,6 +4,7 @@ const { z } = require('../../core/validation/zod');
 const f = require('../../core/validation/fields');
 const { paginationQuery } = require('../../core/utils/pagination');
 const { SUBJECT_TYPES } = require('../subjects/subjects.service');
+const { subjectCardSchema } = require('../favorites/favorites.schema');
 
 const subjectType = z.enum(SUBJECT_TYPES);
 const reviewStatus = z.enum(['pending', 'approved', 'hidden', 'rejected']);
@@ -25,7 +26,8 @@ const updateBody = z
   .partial()
   .strict()
   .refine((b) => Object.keys(b).length > 0, 'at least one field is required');
-const moderationQuery = z.object({ ...paginationQuery, status: reviewStatus.optional(), subjectType: subjectType.optional() }).strict();
+const ownQuery = z.object({ ...paginationQuery, status: reviewStatus.optional() }).strict();
+const moderationQuery =z.object({ ...paginationQuery, status: reviewStatus.optional(), subjectType: subjectType.optional() }).strict();
 const moderateBody = z
   .object({ status: z.enum(['approved', 'hidden', 'rejected']), note: z.string().trim().min(1).max(1000).optional() })
   .strict()
@@ -48,7 +50,13 @@ const publicReviewSchema = z
 const ownReviewSchema = publicReviewSchema
   .extend({ bookingId: z.string().uuid().nullable(), status: reviewStatus, moderationNote: z.string().nullable() })
   .openapi('OwnReview');
-const adminReviewSchema = ownReviewSchema
+const ownReviewWithItemSchema = ownReviewSchema
+  .extend({
+    available: z.boolean().openapi({ description: 'false when the reviewed item is no longer publicly listed' }),
+    item: subjectCardSchema.nullable(),
+  })
+  .openapi('OwnReviewWithItem');
+const adminReviewSchema =ownReviewSchema
   .extend({ userId: z.string().uuid(), moderatedBy: z.string().uuid().nullable() })
   .openapi('AdminReview');
 const ratingSummarySchema = z
@@ -69,8 +77,10 @@ module.exports = {
   pageQuery,
   createBody,
   updateBody,
+  ownQuery,
   moderationQuery,
   moderateBody,
+  ownReviewWithItemSchema,
   publicReviewSchema,
   ownReviewSchema,
   adminReviewSchema,

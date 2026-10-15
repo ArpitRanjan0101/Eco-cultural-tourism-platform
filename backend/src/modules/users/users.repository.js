@@ -73,6 +73,11 @@ async function findNames(db, ids) {
   return rows;
 }
 
+async function findRefs(db, ids) {
+  const { rows } = await db.query('SELECT id, email, full_name FROM users WHERE id = ANY($1::uuid[])', [ids]);
+  return rows;
+}
+
 async function updatePasswordHash(db, id, passwordHash) {
   await db.query('UPDATE users SET password_hash = $2 WHERE id = $1', [id, passwordHash]);
 }
@@ -165,6 +170,7 @@ module.exports = {
   findById,
   findPrincipal,
   findNames,
+  findRefs,
   updatePasswordHash,
   markEmailVerified,
   touchLastLogin,

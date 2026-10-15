@@ -19,6 +19,9 @@ const notificationsRoutes = require('./notifications/notifications.routes');
 const tripsRoutes = require('./trips/trips.routes');
 const favoritesRoutes = require('./favorites/favorites.routes');
 const reviewsRoutes = require('./reviews/reviews.routes');
+const analyticsRoutes = require('./analytics/analytics.routes');
+const settingsRoutes = require('./settings/settings.routes');
+const auditRoutes = require('./audit/audit.routes');
 
 module.exports = [
   ...authRoutes,
@@ -39,4 +42,7 @@ module.exports = [
   ...tripsRoutes,
   ...favoritesRoutes,
   ...reviewsRoutes,
+  ...analyticsRoutes,
+  ...settingsRoutes,
+  ...auditRoutes,
 ];

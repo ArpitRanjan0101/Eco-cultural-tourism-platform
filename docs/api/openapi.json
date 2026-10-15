@@ -5818,6 +5818,48 @@
           }
         ]
       },
+      "OwnReviewWithItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/OwnReview"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "available": {
+                "type": "boolean",
+                "description": "false when the reviewed item is no longer publicly listed"
+              },
+              "item": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/DestinationCard"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PropertyCard"
+                  },
+                  {
+                    "$ref": "#/components/schemas/GuideCard"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ExperienceCard"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PackageCard"
+                  },
+                  {
+                    "nullable": true
+                  }
+                ]
+              }
+            },
+            "required": [
+              "available",
+              "item"
+            ]
+          }
+        ]
+      },
       "AdminReview": {
         "allOf": [
           {
@@ -5841,6 +5883,983 @@
               "moderatedBy"
             ]
           }
+        ]
+      },
+      "PlatformDashboard": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "users": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "active": {
+                "type": "integer"
+              },
+              "newLast30Days": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total",
+              "active",
+              "newLast30Days"
+            ]
+          },
+          "last30Days": {
+            "type": "object",
+            "properties": {
+              "range": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to"
+                ]
+              },
+              "bookings": {
+                "type": "object",
+                "properties": {
+                  "bookings": {
+                    "type": "integer"
+                  },
+                  "confirmed": {
+                    "type": "integer",
+                    "description": "Confirmed or completed"
+                  },
+                  "cancelled": {
+                    "type": "integer"
+                  },
+                  "rejected": {
+                    "type": "integer"
+                  },
+                  "expired": {
+                    "type": "integer"
+                  },
+                  "pending": {
+                    "type": "integer",
+                    "description": "Requested or awaiting payment"
+                  },
+                  "bookedValue": {
+                    "type": "string",
+                    "description": "Total of confirmed/completed bookings",
+                    "example": "12500.00"
+                  },
+                  "averageBookingValue": {
+                    "type": "string",
+                    "example": "12500.00"
+                  }
+                },
+                "required": [
+                  "bookings",
+                  "confirmed",
+                  "cancelled",
+                  "rejected",
+                  "expired",
+                  "pending",
+                  "bookedValue",
+                  "averageBookingValue"
+                ]
+              },
+              "revenue": {
+                "type": "object",
+                "properties": {
+                  "captured": {
+                    "type": "string",
+                    "example": "12500.00"
+                  },
+                  "refunded": {
+                    "type": "string",
+                    "example": "12500.00"
+                  },
+                  "net": {
+                    "type": "string",
+                    "example": "12500.00"
+                  }
+                },
+                "required": [
+                  "captured",
+                  "refunded",
+                  "net"
+                ]
+              }
+            },
+            "required": [
+              "range",
+              "bookings",
+              "revenue"
+            ]
+          },
+          "bookings": {
+            "type": "object",
+            "properties": {
+              "createdToday": {
+                "type": "integer"
+              },
+              "upcomingNext7Days": {
+                "type": "integer"
+              },
+              "awaitingPartnerApproval": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "createdToday",
+              "upcomingNext7Days",
+              "awaitingPartnerApproval"
+            ]
+          },
+          "attention": {
+            "type": "object",
+            "properties": {
+              "partnerApplications": {
+                "type": "integer"
+              },
+              "propertiesPendingReview": {
+                "type": "integer"
+              },
+              "guidesPendingVerification": {
+                "type": "integer"
+              },
+              "experiencesPendingReview": {
+                "type": "integer"
+              },
+              "packagesPendingReview": {
+                "type": "integer"
+              },
+              "reviewsPending": {
+                "type": "integer"
+              },
+              "refundsFailed": {
+                "type": "integer"
+              },
+              "paymentWebhooksFailed": {
+                "type": "integer"
+              },
+              "outboxEventsFailed": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "partnerApplications",
+              "propertiesPendingReview",
+              "guidesPendingVerification",
+              "experiencesPendingReview",
+              "packagesPendingReview",
+              "reviewsPending",
+              "refundsFailed",
+              "paymentWebhooksFailed",
+              "outboxEventsFailed"
+            ]
+          }
+        },
+        "required": [
+          "generatedAt",
+          "currency",
+          "users",
+          "last30Days",
+          "bookings",
+          "attention"
+        ]
+      },
+      "BookingsReport": {
+        "type": "object",
+        "properties": {
+          "range": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "groupBy": {
+                "type": "string",
+                "enum": [
+                  "day",
+                  "week",
+                  "month"
+                ]
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "groupBy"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "bookings": {
+                "type": "integer"
+              },
+              "confirmed": {
+                "type": "integer",
+                "description": "Confirmed or completed"
+              },
+              "cancelled": {
+                "type": "integer"
+              },
+              "rejected": {
+                "type": "integer"
+              },
+              "expired": {
+                "type": "integer"
+              },
+              "pending": {
+                "type": "integer",
+                "description": "Requested or awaiting payment"
+              },
+              "bookedValue": {
+                "type": "string",
+                "description": "Total of confirmed/completed bookings",
+                "example": "12500.00"
+              },
+              "averageBookingValue": {
+                "type": "string",
+                "example": "12500.00"
+              }
+            },
+            "required": [
+              "bookings",
+              "confirmed",
+              "cancelled",
+              "rejected",
+              "expired",
+              "pending",
+              "bookedValue",
+              "averageBookingValue"
+            ]
+          },
+          "byType": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "bookingType": {
+                  "type": "string",
+                  "enum": [
+                    "property_room",
+                    "guide_service",
+                    "experience_session",
+                    "package_departure"
+                  ]
+                },
+                "bookings": {
+                  "type": "integer"
+                },
+                "confirmed": {
+                  "type": "integer",
+                  "description": "Confirmed or completed"
+                },
+                "cancelled": {
+                  "type": "integer"
+                },
+                "rejected": {
+                  "type": "integer"
+                },
+                "expired": {
+                  "type": "integer"
+                },
+                "pending": {
+                  "type": "integer",
+                  "description": "Requested or awaiting payment"
+                },
+                "bookedValue": {
+                  "type": "string",
+                  "description": "Total of confirmed/completed bookings",
+                  "example": "12500.00"
+                }
+              },
+              "required": [
+                "bookingType",
+                "bookings",
+                "confirmed",
+                "cancelled",
+                "rejected",
+                "expired",
+                "pending",
+                "bookedValue"
+              ]
+            }
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "period": {
+                  "type": "string"
+                },
+                "bookings": {
+                  "type": "integer"
+                },
+                "confirmed": {
+                  "type": "integer"
+                },
+                "cancelled": {
+                  "type": "integer"
+                },
+                "bookedValue": {
+                  "type": "string",
+                  "example": "12500.00"
+                }
+              },
+              "required": [
+                "period",
+                "bookings",
+                "confirmed",
+                "cancelled",
+                "bookedValue"
+              ]
+            }
+          }
+        },
+        "required": [
+          "range",
+          "currency",
+          "totals",
+          "byType",
+          "series"
+        ]
+      },
+      "RevenueReport": {
+        "type": "object",
+        "properties": {
+          "range": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "groupBy": {
+                "type": "string",
+                "enum": [
+                  "day",
+                  "week",
+                  "month"
+                ]
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "groupBy"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "captured": {
+                "type": "string",
+                "example": "12500.00"
+              },
+              "refunded": {
+                "type": "string",
+                "example": "12500.00"
+              },
+              "net": {
+                "type": "string",
+                "example": "12500.00"
+              },
+              "payments": {
+                "type": "integer"
+              },
+              "refunds": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "captured",
+              "refunded",
+              "net",
+              "payments",
+              "refunds"
+            ]
+          },
+          "byType": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "bookingType": {
+                  "type": "string",
+                  "enum": [
+                    "property_room",
+                    "guide_service",
+                    "experience_session",
+                    "package_departure"
+                  ]
+                },
+                "captured": {
+                  "type": "string",
+                  "example": "12500.00"
+                },
+                "refunded": {
+                  "type": "string",
+                  "example": "12500.00"
+                },
+                "net": {
+                  "type": "string",
+                  "example": "12500.00"
+                },
+                "payments": {
+                  "type": "integer"
+                },
+                "refunds": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "bookingType",
+                "captured",
+                "refunded",
+                "net",
+                "payments",
+                "refunds"
+              ]
+            }
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "period": {
+                  "type": "string"
+                },
+                "captured": {
+                  "type": "string",
+                  "example": "12500.00"
+                },
+                "refunded": {
+                  "type": "string",
+                  "example": "12500.00"
+                },
+                "net": {
+                  "type": "string",
+                  "example": "12500.00"
+                }
+              },
+              "required": [
+                "period",
+                "captured",
+                "refunded",
+                "net"
+              ]
+            }
+          }
+        },
+        "required": [
+          "range",
+          "currency",
+          "totals",
+          "byType",
+          "series"
+        ]
+      },
+      "DestinationReportRow": {
+        "type": "object",
+        "properties": {
+          "destination": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "slug": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "slug",
+              "status"
+            ]
+          },
+          "bookings": {
+            "type": "integer"
+          },
+          "bookedValue": {
+            "type": "string",
+            "example": "12500.00"
+          },
+          "favorites": {
+            "type": "integer"
+          },
+          "tripStops": {
+            "type": "integer"
+          },
+          "reviews": {
+            "type": "integer"
+          },
+          "averageRating": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "destination",
+          "bookings",
+          "bookedValue",
+          "favorites",
+          "tripStops",
+          "reviews",
+          "averageRating"
+        ]
+      },
+      "PartnerReportRow": {
+        "type": "object",
+        "properties": {
+          "partner": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "businessName": {
+                "type": "string"
+              },
+              "partnerType": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "businessName",
+              "partnerType",
+              "status"
+            ]
+          },
+          "bookings": {
+            "type": "integer"
+          },
+          "confirmed": {
+            "type": "integer"
+          },
+          "cancelled": {
+            "type": "integer"
+          },
+          "cancellationRate": {
+            "type": "number",
+            "description": "Percent of bookings cancelled"
+          },
+          "bookedValue": {
+            "type": "string",
+            "example": "12500.00"
+          },
+          "captured": {
+            "type": "string",
+            "example": "12500.00"
+          },
+          "refunded": {
+            "type": "string",
+            "example": "12500.00"
+          },
+          "net": {
+            "type": "string",
+            "example": "12500.00"
+          }
+        },
+        "required": [
+          "partner",
+          "bookings",
+          "confirmed",
+          "cancelled",
+          "cancellationRate",
+          "bookedValue",
+          "captured",
+          "refunded",
+          "net"
+        ]
+      },
+      "PartnerDashboard": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "partner": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "businessName": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "businessName",
+              "status"
+            ]
+          },
+          "last30Days": {
+            "type": "object",
+            "properties": {
+              "range": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to"
+                ]
+              },
+              "bookings": {
+                "type": "object",
+                "properties": {
+                  "bookings": {
+                    "type": "integer"
+                  },
+                  "confirmed": {
+                    "type": "integer",
+                    "description": "Confirmed or completed"
+                  },
+                  "cancelled": {
+                    "type": "integer"
+                  },
+                  "rejected": {
+                    "type": "integer"
+                  },
+                  "expired": {
+                    "type": "integer"
+                  },
+                  "pending": {
+                    "type": "integer",
+                    "description": "Requested or awaiting payment"
+                  },
+                  "bookedValue": {
+                    "type": "string",
+                    "description": "Total of confirmed/completed bookings",
+                    "example": "12500.00"
+                  },
+                  "averageBookingValue": {
+                    "type": "string",
+                    "example": "12500.00"
+                  }
+                },
+                "required": [
+                  "bookings",
+                  "confirmed",
+                  "cancelled",
+                  "rejected",
+                  "expired",
+                  "pending",
+                  "bookedValue",
+                  "averageBookingValue"
+                ]
+              },
+              "revenue": {
+                "type": "object",
+                "properties": {
+                  "captured": {
+                    "type": "string",
+                    "example": "12500.00"
+                  },
+                  "refunded": {
+                    "type": "string",
+                    "example": "12500.00"
+                  },
+                  "net": {
+                    "type": "string",
+                    "example": "12500.00"
+                  }
+                },
+                "required": [
+                  "captured",
+                  "refunded",
+                  "net"
+                ]
+              }
+            },
+            "required": [
+              "range",
+              "bookings",
+              "revenue"
+            ]
+          },
+          "bookings": {
+            "type": "object",
+            "properties": {
+              "awaitingApproval": {
+                "type": "integer"
+              },
+              "upcomingNext7Days": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "awaitingApproval",
+              "upcomingNext7Days"
+            ]
+          },
+          "upcoming": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "reference": {
+                  "type": "string"
+                },
+                "bookingType": {
+                  "type": "string",
+                  "enum": [
+                    "property_room",
+                    "guide_service",
+                    "experience_session",
+                    "package_departure"
+                  ]
+                },
+                "status": {
+                  "type": "string"
+                },
+                "totalAmount": {
+                  "type": "string",
+                  "example": "12500.00"
+                },
+                "serviceStartAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "id",
+                "reference",
+                "bookingType",
+                "status",
+                "totalAmount",
+                "serviceStartAt"
+              ]
+            }
+          },
+          "supply": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "property",
+                    "guide",
+                    "experience",
+                    "package"
+                  ]
+                },
+                "status": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "type",
+                "status",
+                "count"
+              ]
+            }
+          },
+          "rating": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "average": {
+                "type": "number",
+                "nullable": true
+              }
+            },
+            "required": [
+              "count",
+              "average"
+            ]
+          }
+        },
+        "required": [
+          "generatedAt",
+          "currency",
+          "partner",
+          "last30Days",
+          "bookings",
+          "upcoming",
+          "supply",
+          "rating"
+        ]
+      },
+      "PlatformSetting": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "value": {
+            "nullable": true
+          },
+          "defaultValue": {
+            "nullable": true
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "updatedBy": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "updatedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "key",
+          "description",
+          "isDefault",
+          "updatedBy",
+          "updatedAt"
+        ]
+      },
+      "AuditLog": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string"
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "entityId": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "email": {
+                "type": "string",
+                "nullable": true
+              },
+              "fullName": {
+                "type": "string",
+                "nullable": true
+              }
+            },
+            "required": [
+              "id",
+              "email",
+              "fullName"
+            ]
+          },
+          "oldValues": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": {
+              "nullable": true
+            }
+          },
+          "newValues": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": {
+              "nullable": true
+            }
+          },
+          "ipAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "requestId": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "entityType",
+          "entityId",
+          "actor",
+          "oldValues",
+          "newValues",
+          "ipAddress",
+          "requestId",
+          "createdAt"
         ]
       }
     },
@@ -33605,6 +34624,139 @@
         }
       }
     },
+    "/api/v1/users/me/reviews": {
+      "get": {
+        "tags": [
+          "Reviews"
+        ],
+        "summary": "List own reviews",
+        "description": "Requires permission(s): reviews.write.own. The author's reviews in any status (with moderation note) and the reviewed item's card. Addition approved as O9.",
+        "security": [
+          {
+            "ServiceToken": [],
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "approved",
+                "hidden",
+                "rejected"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List own reviews",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/OwnReviewWithItem"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "page": {
+                          "type": "integer"
+                        },
+                        "limit": {
+                          "type": "integer"
+                        },
+                        "total": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "page",
+                        "limit",
+                        "total"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid service token / user credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/reviews": {
       "get": {
         "tags": [
@@ -33853,6 +35005,1447 @@
           },
           "404": {
             "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/dashboard": {
+      "get": {
+        "tags": [
+          "Admin: Reports"
+        ],
+        "summary": "Platform dashboard",
+        "description": "Requires permission(s): reports.read.platform. Users, last-30-day bookings/revenue, and moderation/operations queues needing attention.",
+        "security": [
+          {
+            "ServiceToken": [],
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Platform dashboard",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PlatformDashboard"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid service token / user credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reports/bookings": {
+      "get": {
+        "tags": [
+          "Admin: Reports"
+        ],
+        "summary": "Bookings report",
+        "description": "Requires permission(s): reports.read.platform. Bookings created in the range by current status, type and period. Local calendar dates (Asia/Kolkata), `to` inclusive; default the last 30 days; at most 366 days.",
+        "security": [
+          {
+            "ServiceToken": [],
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Local date (Asia/Kolkata); default 29 days before `to`"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Inclusive local date; default today"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ],
+              "default": "day"
+            },
+            "required": false,
+            "name": "groupBy",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "property_room",
+                "guide_service",
+                "experience_session",
+                "package_departure"
+              ]
+            },
+            "required": false,
+            "name": "bookingType",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "partnerId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bookings report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/BookingsReport"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid service token / user credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reports/revenue": {
+      "get": {
+        "tags": [
+          "Admin: Reports"
+        ],
+        "summary": "Revenue report",
+        "description": "Requires permission(s): reports.read.platform. Captured payments minus succeeded refunds, by the date money moved. Local calendar dates (Asia/Kolkata), `to` inclusive; default the last 30 days; at most 366 days.",
+        "security": [
+          {
+            "ServiceToken": [],
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Local date (Asia/Kolkata); default 29 days before `to`"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Inclusive local date; default today"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ],
+              "default": "day"
+            },
+            "required": false,
+            "name": "groupBy",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "property_room",
+                "guide_service",
+                "experience_session",
+                "package_departure"
+              ]
+            },
+            "required": false,
+            "name": "bookingType",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "partnerId",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revenue report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RevenueReport"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid service token / user credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reports/destinations": {
+      "get": {
+        "tags": [
+          "Admin: Reports"
+        ],
+        "summary": "Destination performance",
+        "description": "Requires permission(s): reports.read.platform. Per destination: attributed bookings, favorites, trip-plan stops and approved reviews in the range. Local calendar dates (Asia/Kolkata), `to` inclusive; default the last 30 days; at most 366 days.",
+        "security": [
+          {
+            "ServiceToken": [],
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Local date (Asia/Kolkata); default 29 days before `to`"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Inclusive local date; default today"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "published",
+                "archived"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "districtId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "bookings",
+                "bookedValue",
+                "favorites",
+                "tripStops",
+                "reviews",
+                "rating"
+              ],
+              "default": "bookings"
+            },
+            "required": false,
+            "name": "sort",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Destination performance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DestinationReportRow"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "page": {
+                          "type": "integer"
+                        },
+                        "limit": {
+                          "type": "integer"
+                        },
+                        "total": {
+                          "type": "integer"
+                        },
+                        "from": {
+                          "type": "string"
+                        },
+                        "to": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "page",
+                        "limit",
+                        "total",
+                        "from",
+                        "to"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid service token / user credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/reports/partners": {
+      "get": {
+        "tags": [
+          "Admin: Reports"
+        ],
+        "summary": "Partner performance",
+        "description": "Requires permission(s): reports.read.platform. Per partner: bookings, cancellations, booked value, captured/refunded/net revenue. Local calendar dates (Asia/Kolkata), `to` inclusive; default the last 30 days; at most 366 days.",
+        "security": [
+          {
+            "ServiceToken": [],
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Local date (Asia/Kolkata); default 29 days before `to`"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Inclusive local date; default today"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "accommodation",
+                "guide",
+                "operator",
+                "multi"
+              ]
+            },
+            "required": false,
+            "name": "partnerType",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "approved",
+                "rejected",
+                "suspended"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "bookedValue",
+                "net",
+                "bookings",
+                "name"
+              ],
+              "default": "bookedValue"
+            },
+            "required": false,
+            "name": "sort",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Partner performance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PartnerReportRow"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "page": {
+                          "type": "integer"
+                        },
+                        "limit": {
+                          "type": "integer"
+                        },
+                        "total": {
+                          "type": "integer"
+                        },
+                        "from": {
+                          "type": "string"
+                        },
+                        "to": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "page",
+                        "limit",
+                        "total",
+                        "from",
+                        "to"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid service token / user credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/partners/me/dashboard": {
+      "get": {
+        "tags": [
+          "Partner reports"
+        ],
+        "summary": "Partner dashboard",
+        "description": "Requires permission(s): reports.read.partner. Own organisation: last-30-day bookings/revenue, approvals waiting, next confirmed services, supply status, rating.",
+        "security": [
+          {
+            "ServiceToken": [],
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Required only when the user belongs to several partner organisations"
+            },
+            "required": false,
+            "name": "x-partner-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Partner dashboard",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PartnerDashboard"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid service token / user credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/partners/me/reports/bookings": {
+      "get": {
+        "tags": [
+          "Partner reports"
+        ],
+        "summary": "Own bookings report",
+        "description": "Requires permission(s): reports.read.partner. Local calendar dates (Asia/Kolkata), `to` inclusive; default the last 30 days; at most 366 days.",
+        "security": [
+          {
+            "ServiceToken": [],
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Local date (Asia/Kolkata); default 29 days before `to`"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Inclusive local date; default today"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ],
+              "default": "day"
+            },
+            "required": false,
+            "name": "groupBy",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "property_room",
+                "guide_service",
+                "experience_session",
+                "package_departure"
+              ]
+            },
+            "required": false,
+            "name": "bookingType",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Required only when the user belongs to several partner organisations"
+            },
+            "required": false,
+            "name": "x-partner-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Own bookings report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/BookingsReport"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid service token / user credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/partners/me/reports/revenue": {
+      "get": {
+        "tags": [
+          "Partner reports"
+        ],
+        "summary": "Own revenue report",
+        "description": "Requires permission(s): reports.read.partner. Gross amounts collected for the organisation's bookings (before any platform commission — O2). Local calendar dates (Asia/Kolkata), `to` inclusive; default the last 30 days; at most 366 days.",
+        "security": [
+          {
+            "ServiceToken": [],
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Local date (Asia/Kolkata); default 29 days before `to`"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "description": "Inclusive local date; default today"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ],
+              "default": "day"
+            },
+            "required": false,
+            "name": "groupBy",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "property_room",
+                "guide_service",
+                "experience_session",
+                "package_departure"
+              ]
+            },
+            "required": false,
+            "name": "bookingType",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Required only when the user belongs to several partner organisations"
+            },
+            "required": false,
+            "name": "x-partner-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Own revenue report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RevenueReport"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid service token / user credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/settings": {
+      "get": {
+        "tags": [
+          "Admin: Settings"
+        ],
+        "summary": "Read platform settings",
+        "description": "Requires permission(s): settings.read. Every approved key with its effective value and default.",
+        "security": [
+          {
+            "ServiceToken": [],
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Read platform settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlatformSetting"
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid service token / user credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Admin: Settings"
+        ],
+        "summary": "Change platform settings",
+        "description": "Requires permission(s): settings.write. Body `{ values: { \"<key>\": value } }` with per-key validation; `null` restores the default. Atomic, audited per key. Applies to bookings created afterwards; other API instances pick changes up within 30 s.",
+        "security": [
+          {
+            "ServiceToken": [],
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "values": {
+                    "type": "object",
+                    "properties": {
+                      "booking.hold_minutes": {
+                        "type": "integer",
+                        "nullable": true,
+                        "minimum": 5,
+                        "maximum": 60
+                      },
+                      "booking.request_approval_hours": {
+                        "type": "integer",
+                        "nullable": true,
+                        "minimum": 1,
+                        "maximum": 168
+                      },
+                      "booking.payment_window_hours": {
+                        "type": "integer",
+                        "nullable": true,
+                        "minimum": 1,
+                        "maximum": 168
+                      },
+                      "booking.max_advance_days": {
+                        "type": "integer",
+                        "nullable": true,
+                        "minimum": 30,
+                        "maximum": 730
+                      },
+                      "booking.tax_rate_percent": {
+                        "type": "number",
+                        "nullable": true,
+                        "minimum": 0,
+                        "maximum": 28
+                      },
+                      "booking.default_cancellation_policy": {
+                        "type": "object",
+                        "nullable": true,
+                        "properties": {
+                          "tiers": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "hoursBeforeCheckIn": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 8760
+                                },
+                                "refundPercent": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 100
+                                }
+                              },
+                              "required": [
+                                "hoursBeforeCheckIn",
+                                "refundPercent"
+                              ],
+                              "additionalProperties": false
+                            },
+                            "minItems": 1,
+                            "maxItems": 10
+                          },
+                          "notes": {
+                            "type": "string",
+                            "maxLength": 1000
+                          }
+                        },
+                        "required": [
+                          "tiers"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "values"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Change platform settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlatformSetting"
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid service token / user credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/audit-logs": {
+      "get": {
+        "tags": [
+          "Admin: Audit"
+        ],
+        "summary": "Search audit logs",
+        "description": "Requires permission(s): audit.read. Append-only administrative/security trail, newest first. Dates are local (Asia/Kolkata), inclusive.",
+        "security": [
+          {
+            "ServiceToken": [],
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "actorUserId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z_]{0,49}$"
+            },
+            "required": false,
+            "name": "entityType",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "required": false,
+            "name": "entityId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z_.]{0,99}$",
+              "description": "Exact action or prefix, e.g. \"reviews.\" or \"partners.status_changed\""
+            },
+            "required": false,
+            "name": "action",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "required": false,
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            "required": false,
+            "name": "to",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search audit logs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuditLog"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "page": {
+                          "type": "integer"
+                        },
+                        "limit": {
+                          "type": "integer"
+                        },
+                        "total": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "page",
+                        "limit",
+                        "total"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "meta"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid service token / user credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but not permitted",
             "content": {
               "application/json": {
                 "schema": {

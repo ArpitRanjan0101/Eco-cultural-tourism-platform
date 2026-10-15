@@ -75,6 +75,17 @@ const routes = [
   },
   {
     method: 'get',
+    path: '/users/me/reviews',
+    tags: TAGS,
+    summary: 'List own reviews',
+    description: 'The author\'s reviews in any status (with moderation note) and the reviewed item\'s card. Addition approved as O9.',
+    ...write,
+    request: { query: schema.ownQuery },
+    response: { status: 200, schema: successEnvelope(z.array(schema.ownReviewWithItemSchema), { paginated: true }) },
+    handler: controller.listOwn,
+  },
+  {
+    method: 'get',
     path: '/admin/reviews',
     tags: ADMIN,
     summary: 'Moderation queue',

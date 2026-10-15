@@ -66,4 +66,15 @@ async function listForModeration(db, { status, subjectType, page, limit }) {
   return { rows: rows.rows, total: count.rows[0].total };
 }
 
-module.exports = { find, insert, update, remove, listApproved, summary, listForModeration };
+async function listOwn(db, userId, { status, page, limit }) {
+  const window = pageWindow({ page, limit });
+  const values = [userId, status ?? null];
+  const where = 'WHERE user_id = $1 AND ($2::text IS NULL OR status = $2)';
+  const [rows, count] = await Promise.all([
+    db.query(`SELECT * FROM reviews ${where} ORDER BY created_at DESC, id DESC LIMIT $3 OFFSET $4`, [...values, window.limit, window.offset]),
+    db.query(`SELECT count(*)::int AS total FROM reviews ${where}`, values),
+  ]);
+  return { rows: rows.rows, total: count.rows[0].total };
+}
+
+module.exports = { find, insert, update, remove, listApproved, summary, listForModeration, listOwn };

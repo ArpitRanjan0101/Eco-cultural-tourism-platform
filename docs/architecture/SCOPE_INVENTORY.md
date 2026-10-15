@@ -230,13 +230,18 @@ GET /notifications  GET /notifications/unread-count  PATCH /notifications/:id/re
 POST /notifications/read-all  GET /admin/notification-templates  PATCH /admin/notification-templates/:id
 ```
 
-### 5.15 Admin, settings, reporting, health (14) — Phase 9 (health: Phase 1)
+### 5.15 Admin, settings, reporting, health (14) — Phase 9 (health: Phase 1) — [x] all 14
 ```
 GET /admin/dashboard  GET /admin/reports/bookings  GET /admin/reports/revenue
 GET /admin/reports/destinations  GET /admin/reports/partners
 GET /partners/me/dashboard  GET /partners/me/reports/bookings  GET /partners/me/reports/revenue
 GET|PATCH /admin/settings  GET /admin/audit-logs
 [x] GET /health/live  [x] GET /health/ready  [x] GET /health/version
+```
+
+### Approved additions outside the register
+```
+GET /users/me/reviews   (O9 → DECISIONS I9, Phase 9)
 ```
 
 ## 4. Background queues (7) — Section 9

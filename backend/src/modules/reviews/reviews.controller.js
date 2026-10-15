@@ -18,6 +18,7 @@ module.exports = {
     await service.remove(ctx(req), req.valid.params.id);
     sendNoContent(res);
   },
+  listOwn: async (req, res) => sendPage(res, await service.listOwn(ctx(req), req.valid.query)),
   listForModeration: async (req, res) => sendPage(res, await service.listForModeration(req.valid.query)),
   moderate: async (req, res) => sendSuccess(res, await service.moderate(ctx(req), req.valid.params.id, req.valid.body)),
 };

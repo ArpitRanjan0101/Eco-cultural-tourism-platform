@@ -108,6 +108,14 @@ async function getDisplayNames(ids, db = pool) {
   );
 }
 
+/** Map id -> { id, email, fullName } for administrative views (audit search). */
+async function getUserRefMap(ids, db = pool) {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (unique.length === 0) return new Map();
+  const rows = await usersRepository.findRefs(db, unique);
+  return new Map(rows.map((row) => [row.id, { id: row.id, email: row.email, fullName: row.full_name }]));
+}
+
 /** Minimal account lookup for invitations (partner team management). */
 async function findAccountByEmail(db, email) {
   const row = await usersRepository.findCredentialsByEmail(db, email);
@@ -256,6 +264,7 @@ module.exports = {
   syncManagedRoles,
   findAccountByEmail,
   getDisplayNames,
+  getUserRefMap,
   setPasswordHash,
   markEmailVerified,
   recordLogin,

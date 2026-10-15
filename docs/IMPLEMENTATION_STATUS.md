@@ -16,8 +16,8 @@ design: [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) · decision
 | 5 | Booking engine, concurrency, reservation lifecycle | ✅ Verified (2026-10-15) |
 | 6 | Payments, webhooks, cancellations, refunds, reconciliation | ✅ Verified (2026-10-15) |
 | 7 | BullMQ, outbox, notifications | ✅ Verified (2026-10-15) |
-| 8 | Trips, favorites, reviews | ✅ Verified (2026-10-15) — awaiting approval for Phase 9 |
-| 9 | Admin, analytics, audit, settings | ⏳ |
+| 8 | Trips, favorites, reviews | ✅ Verified (2026-10-15) |
+| 9 | Admin, analytics, audit, settings | ✅ Verified (2026-10-15) — awaiting approval for Phase 10 |
 | 10 | Integration/security testing, API docs, production deployment | ⏳ |
 
 ## Phase 1 — delivered
@@ -254,14 +254,38 @@ design: [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) · decision
 - Test fix: the Phase 7 request-to-book email test now waits for the specific subject (the operator also receives the
   partner-approval email, which made it order-dependent).
 
+## Phase 9 — delivered
+
+- **Migration:** `0016_reporting_indexes` (bookings created/upcoming, captured payments by `paid_at`, succeeded refunds by
+  `processed_at`).
+- **Modules:** `analytics` (platform dashboard, bookings/revenue/destination/partner reports; partner dashboard and own
+  bookings/revenue reports), `settings` routes (list with defaults, validated atomic audited update, `null` = reset),
+  `audit` search route (`audit-search.service.js`), `GET /users/me/reviews` (approved addition O9).
+- **Interfaces added:** `usersService.getUserRefMap`. Test reset clears the settings cache.
+- Decisions I1–I9. All 241 register routes + 1 approved addition implemented.
+
+### Phase 9 verification (executed 2026-10-15)
+
+- `db:migrate` applied 0016; rollback + re-apply on the dev DB ✅ · 239 routes / 242 OpenAPI operations ✅ · lint 0 ✅
+- `npm test` → **141 tests, 141 pass, 0 fail**, two consecutive runs — adds (real payment via fake Razorpay + admin refund):
+  bookings report totals/average/by type, 30 daily buckets with today's figures, monthly grouping, type filter; revenue
+  1000.00 captured − 200.00 refunded = 800.00 by type/period/partner, empty past range with filled buckets, invalid
+  ranges/groupBy 422; destination ranking with attributed booking value, favorites, trip stops; partner ranking and
+  type filter; platform dashboard figures and attention queue; admin-only 403; partner dashboard/reports scoped to the
+  organisation (no `partnerId` override), non-partner 403; settings list/defaults, super-admin-only write, per-key
+  validation, new hold window applied to the next booking, reset to default, per-key audit rows; audit search by
+  action prefix, entity, actor, local date range, invalid input 422, permission 403; own reviews with moderation note and
+  item card, status filter, owner scoping ✅
+- Dev stack via nginx `:8081` as the bootstrap super admin: dashboard, all four reports, settings, audit logs, own
+  reviews → 200 ✅
+
 ## Pending / carried forward
 
 - Phase 10: separate migration-owner and least-privilege runtime DB roles (C17); production compose (no private port publish,
   TLS, resource limits, log rotation, secrets); backups/restore drill; Swagger UI hosting.
-- Open owner decisions O2, O6–O9 in DECISIONS.md.
+- Open owner decisions O2, O6–O8 in DECISIONS.md.
 - Production payment launch still gated by O2 (merchant of record, GST, settlement/payouts — Report §13 Critical).
 - SMTP credentials: `.env` has empty `SMTP_USER`/`SMTP_PASSWORD` slots (dev uses Mailpit); fill and recreate api/worker.
-- Phase 9: `GET /admin/audit-logs` search over the existing `audit_logs`.
 
 ## Commands (host needs Docker only)
 

@@ -9,10 +9,10 @@ technical clarification applied without changing the report's scope.
 |----|-------|-----------|------------------|
 | O2 | Merchant-of-record / partner settlement, GST, invoice issuer (Report §1.3, §13 Critical) | Production payments | Sandbox only until decided; tax rate from `platform_settings`, default 0 |
 O1 (Razorpay), O3 (booking mode), O4 (timings) and O5 (partner types → supply) were accepted on 2026-10-15; see F1/D1/D2/E2.
+O9 (`GET /users/me/reviews`, outside the route register) was approved on 2026-10-15; see I9.
 | O6 | Email provider | Phase 7 | SMTP (any provider); Mailpit container in development |
 | O7 | Object storage provider (production) | Production | Any S3-compatible service (AWS S3, Cloudflare R2, Wasabi…) via `STORAGE_*`; dev uses SeaweedFS (B1) |
 | O8 | Redirects have only admin routes in Report §5.13, so the BFF cannot read them without admin rights | Phase 10 (frontend) | Add public `GET /content/redirects` (service token only) — needs approval as a route outside the register |
-| O9 | No route lists an author's own reviews (pending/rejected) in Report §5.12 | Phase 10 (frontend) | Add `GET /users/me/reviews` (own reviews, any status) — needs approval as a route outside the register |
 
 ## Clarifications applied
 
@@ -147,8 +147,22 @@ O1 (Razorpay), O3 (booking mode), O4 (timings) and O5 (partner types → supply)
 | H4 | Favorites and reviews reference subjects polymorphically (`destination`, `property`, `guide`, `experience`, `package`), resolved through `modules/subjects` → each owning module's public-card interface. Only publicly visible items can be saved; saved items that later go private are listed with `available: false`. `POST /favorites` is idempotent (201 new, 200 existing). |
 | H5 | Reviews of bookable supply are verified: they need `bookingId` of the author's own **completed** booking of that exact item (422 `BOOKING_NOT_REVIEWABLE`), one per booking. Destinations (not bookable) take one unverified review per user. Database: `booking_id` required unless the subject is a destination; partial unique indexes enforce both rules. |
 | H6 | Every new or edited review is `pending` until a moderator (`reviews.moderate`) sets `approved`, `hidden` or `rejected` (note required for the last two); moderation is audited and records moderator + note (additions). Authors may delete their own review. Public lists show approved reviews only, newest first, with a rating summary (count, average to one decimal, 1–5 distribution) in `meta.rating`; authors appear as "First L." (no user ids or emails). |
-| H7 | `GET /reviews` is the public listing for one item (`subjectType` + `subjectId` required); `GET /destinations/:slug/reviews` serves destinations by slug. The route register has no "my reviews" list; authors see status and moderation note in POST/PATCH responses (see O9). |
+| H7 | `GET /reviews` is the public listing for one item (`subjectType` + `subjectId` required); `GET /destinations/:slug/reviews` serves destinations by slug. Authors list their own reviews via `GET /users/me/reviews` (I9). |
 | H8 | `POST /reviews` is rate limited (20 per user per hour). |
+
+## Phase 9 decisions (administration, reporting, settings, audit)
+
+| ID | Decision |
+|----|----------|
+| I1 | Reporting (`modules/analytics`) is a read-only projection: its repository runs aggregate SQL across other modules' tables and never writes. This is the one deliberate exception to "modules use each other's services": routing every aggregate through transactional services would mean N+1 queries or duplicated report SQL in each module. Supporting indexes in migration 0016. |
+| I2 | Ranges are local (Asia/Kolkata) calendar dates, `to` inclusive; default the last 30 days; at most 366 days; series buckets by day/week (Monday)/month with empty buckets filled. |
+| I3 | Booking figures count bookings **created** in the range by their current status; "booked value" = total of confirmed/completed bookings. Revenue counts money by the date it moved: captured payments (`paid_at`) minus succeeded refunds (`processed_at`); amounts are gross (no commission/GST split until O2). |
+| I4 | Destination attribution: property and experience bookings count towards their destination; guide and package bookings count towards every linked destination (so per-destination sums can exceed the platform total). Favorites, trip stops and approved reviews count by creation date. |
+| I5 | Partner reports/dashboard are forced to the caller's organisation (partner guard; `partnerId` is not accepted). Platform reports accept `partnerId`/`bookingType` filters. |
+| I6 | Settings: only the approved keys, each with its own validation; `null` restores the code default; changes are atomic, audited per changed key (`settings.updated`), apply to bookings created afterwards, invalidate the local cache at once and reach other instances within 30 s. `settings.write` stays super_admin-only (A-series default). |
+| I7 | Audit search (`audit.read`): filters actor, entity type/id, action (exact or prefix, e.g. `reviews.`), local date range; newest first; actor email/name resolved through the users service. The search lives in `audit-search.service.js` so the audit writer used by every module keeps no users dependency (no require cycle). |
+| I8 | Dashboards: platform = users, last-30-day bookings/revenue, today/upcoming, and an "attention" list (pending partner applications, supply awaiting review, guide verification, pending reviews, failed refunds/webhooks/outbox events). Partner = own last-30-day figures, approvals waiting, next 10 confirmed services, supply status counts, approved-review rating. |
+| I9 | `GET /users/me/reviews` (approved addition, O9): the author's reviews in every status with moderation note and the reviewed item's card (`available: false` once unlisted). |
 
 ## Technology choices (pinned in package.json / compose)
 

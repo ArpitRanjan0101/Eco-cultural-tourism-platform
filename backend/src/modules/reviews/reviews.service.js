@@ -119,6 +119,20 @@ async function remove(ctx, id) {
   });
 }
 
+/** The author's own reviews in any status, with the reviewed item's public card (DECISIONS O9 → H9). */
+async function listOwn(ctx, query) {
+  const { rows, total } = await repository.listOwn(pool, ctx.actorUserId, query);
+  const [reviews, cards] = await Promise.all([
+    present(rows, toOwn),
+    subjects.resolveCards(rows.map((row) => ({ subjectType: row.subject_type, subjectId: row.subject_id }))),
+  ]);
+  const items = reviews.map((review) => {
+    const item = cards.get(`${review.subjectType}:${review.subjectId}`) ?? null;
+    return { ...review, available: item !== null, item };
+  });
+  return { items, meta: pageMeta(query, total) };
+}
+
 async function listForModeration(query) {
   const { rows, total } = await repository.listForModeration(pool, query);
   return { items: await present(rows, toAdmin), meta: pageMeta(query, total) };
@@ -135,4 +149,4 @@ async function moderate(ctx, id, { status, note }) {
   return presentOne(id, toAdmin);
 }
 
-module.exports = { listForSubject, listForDestination, create, update, remove, listForModeration, moderate };
+module.exports = { listForSubject, listForDestination, create, update, remove, listOwn, listForModeration, moderate };

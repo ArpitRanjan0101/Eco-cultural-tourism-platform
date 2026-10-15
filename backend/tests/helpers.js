@@ -7,6 +7,7 @@ const { closeRedis, getRedis } = require('../src/config/redis');
 const { Migrator } = require('../src/database/migrator');
 const { withTransaction } = require('../src/core/database/transaction');
 const usersService = require('../src/modules/users/users.service');
+const settingsService = require('../src/modules/settings/settings.service');
 const { hashPassword } = require('../src/modules/auth/password');
 
 const SERVICE_TOKEN = process.env.INTERNAL_SERVICE_TOKEN;
@@ -21,6 +22,7 @@ async function resetData() {
   await pool.query(`TRUNCATE users, auth_login_attempts, outbox_events, regions, destination_categories,
                     cms_pages, cms_menus, cms_redirects, cms_announcements, partners, amenities, guide_languages CASCADE`);
   await getRedis().flushdb(); // test Redis database only (REDIS_URL=…/1)
+  settingsService.invalidate(); // platform_settings rows were truncated with users (updated_by FK)
   // TRUNCATE users CASCADE also empties notification_templates (updated_by FK); restore the migration's rows.
   if ((await pool.query('SELECT count(*)::int AS n FROM notification_templates')).rows[0].n === 0) {
     await pool.query(defaultTemplatesSql());

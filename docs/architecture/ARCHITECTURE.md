@@ -1,7 +1,8 @@
 # Backend Architecture
 
 Implements the Technical Report v1.0. This file records **how** it is built; scope lives in
-[SCOPE_INVENTORY.md](SCOPE_INVENTORY.md) and deviations/clarifications in [DECISIONS.md](DECISIONS.md).
+[SCOPE_INVENTORY.md](SCOPE_INVENTORY.md), deviations/clarifications in [DECISIONS.md](DECISIONS.md) and
+runtime behaviour (auth, booking, payment, events) in [FLOW.md](FLOW.md).
 
 ## Runtime shape
 

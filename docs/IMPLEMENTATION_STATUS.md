@@ -15,8 +15,8 @@ design: [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) · decision
 | 4 | Partners, hotels, inventory, guides, experiences, packages | ✅ Verified (2026-10-15) |
 | 5 | Booking engine, concurrency, reservation lifecycle | ✅ Verified (2026-10-15) |
 | 6 | Payments, webhooks, cancellations, refunds, reconciliation | ✅ Verified (2026-10-15) |
-| 7 | BullMQ, outbox, notifications | ✅ Verified (2026-10-15) — awaiting approval for Phase 8 |
-| 8 | Trips, favorites, reviews | ⏳ |
+| 7 | BullMQ, outbox, notifications | ✅ Verified (2026-10-15) |
+| 8 | Trips, favorites, reviews | ✅ Verified (2026-10-15) — awaiting approval for Phase 9 |
 | 9 | Admin, analytics, audit, settings | ⏳ |
 | 10 | Integration/security testing, API docs, production deployment | ⏳ |
 
@@ -230,13 +230,37 @@ design: [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) · decision
   email delivered ✅
 - Test infra: test reset restores migration-seeded templates (TRUNCATE users CASCADE empties them via `updated_by`).
 
+## Phase 8 — delivered
+
+- **Migration:** `0015_trips_reviews_favorites` — trips, trip_days (derived dates), trip_stops (deferred unique order),
+  favorites, reviews (verified-booking CHECK, partial unique indexes, moderation trail).
+- **Modules:** `trips` (12 routes: trips, days, stops, cross-day reorder), `favorites` (3), `reviews` (6 + deferred
+  `GET /destinations/:slug/reviews`), `subjects` (polymorphic subject → public card resolution via owning modules).
+- **Interfaces added:** supply `getPublicCardsByIds`, `bookingsService.getReviewableBooking`, `usersService.getDisplayNames`.
+- Decisions H1–H8; open O9 (own-reviews list route).
+
+### Phase 8 verification (executed 2026-10-15)
+
+- `db:migrate` applied 0015; rollback of 0015 + re-apply on the dev DB ✅ · 227 routes / 230 OpenAPI operations ✅ · lint 0 ✅
+- `npm test` → **135 tests, 135 pass, 0 fail**, two consecutive runs — adds: dated trip creates days; stop title from
+  destination, unknown destination/time-order refusals; cross-day reorder with completeness check; renumbering after delete;
+  owner isolation (404 for others); re-dating days, DAYS_OUTSIDE_RANGE, DAY_EXISTS, undated trips, draft-only delete with
+  cascade; permission 403; favorites idempotent 201/200, non-public 404, type filter, suspended item shown unavailable,
+  remove 404 for others; verified reviews only from the author's completed booking of that item, one per booking, pending
+  until approved, public view without moderation fields, rating summary, edit returns to pending; one destination review
+  per user, moderation queue order, note required, audit row, `/destinations/:slug/reviews`, admin-only moderation ✅
+- Via nginx `:8081`: `/reviews` 422 without subject, `/trips` `/favorites` `/admin/reviews` 401 without user, unknown
+  destination reviews 404 ✅
+- Test fix: the Phase 7 request-to-book email test now waits for the specific subject (the operator also receives the
+  partner-approval email, which made it order-dependent).
+
 ## Pending / carried forward
 
 - Phase 10: separate migration-owner and least-privilege runtime DB roles (C17); production compose (no private port publish,
   TLS, resource limits, log rotation, secrets); backups/restore drill; Swagger UI hosting.
-- Open owner decisions O1–O7 in DECISIONS.md (O1 gateway blocks Phase 6).
+- Open owner decisions O2, O6–O9 in DECISIONS.md.
 - Production payment launch still gated by O2 (merchant of record, GST, settlement/payouts — Report §13 Critical).
-- Phase 8: `/destinations/:slug/reviews`.
+- SMTP credentials: `.env` has empty `SMTP_USER`/`SMTP_PASSWORD` slots (dev uses Mailpit); fill and recreate api/worker.
 - Phase 9: `GET /admin/audit-logs` search over the existing `audit_logs`.
 
 ## Commands (host needs Docker only)

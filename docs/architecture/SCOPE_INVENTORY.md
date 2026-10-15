@@ -61,7 +61,7 @@ Phase = phase of the agreed working method in which the item is delivered.
 - [x] package_inclusions · [x] package_media · [x] package_departures
 
 ### 4.7 Trip planner (3) — Phase 8
-- [ ] trips · [ ] trip_days · [ ] trip_stops
+- [x] trips · [x] trip_days · [x] trip_stops
 
 ### 4.8 Bookings & holds (7) — Phase 5
 - [x] bookings · [x] booking_items · [x] booking_travelers · [x] inventory_holds
@@ -74,7 +74,7 @@ Phase = phase of the agreed working method in which the item is delivered.
 - [x] partners · [x] partner_users · [x] partner_documents · [x] partner_approval_history
 
 ### 4.11 Reviews & favorites (2) — Phase 8
-- [ ] reviews · [ ] favorites
+- [x] reviews · [x] favorites
 
 ### 4.12 CMS & media (7) — Phase 3
 - [x] media_assets · [x] cms_pages · [x] cms_page_sections · [x] cms_menus · [x] cms_menu_items
@@ -103,7 +103,7 @@ PUT  /admin/users/:id/roles    GET  /admin/roles            GET  /admin/permissi
 PUT  /admin/roles/:id/permissions
 ```
 
-### 5.2 Geography & destinations (36) — Phase 3/4 — [~] 35 implemented; `/destinations/:slug/reviews` → P8
+### 5.2 Geography & destinations (36) — Phase 3/4/8 — [x] all 36 (`/destinations/:slug/reviews` in P8)
 ```
 GET /regions  GET /districts  GET /districts/:slug  GET /districts/:slug/destinations
 GET /destination-categories  GET /destinations  GET /destinations/featured
@@ -168,7 +168,7 @@ POST /partners/me/packages/:id/departures  PATCH /partners/me/packages/:id/depar
 GET /admin/packages  PATCH /admin/packages/:id/status
 ```
 
-### 5.7 Trip planner (12) — Phase 8
+### 5.7 Trip planner (12) — Phase 8 — [x] all 12
 ```
 GET|POST /trips  GET|PATCH|DELETE /trips/:id
 POST /trips/:id/days  PATCH|DELETE /trips/:id/days/:dayId
@@ -206,7 +206,7 @@ GET /admin/partners  GET /admin/partners/:id  PATCH /admin/partners/:id/status
 GET /admin/partners/:id/documents
 ```
 
-### 5.12 Reviews & favorites (9) — Phase 8
+### 5.12 Reviews & favorites (9) — Phase 8 — [x] all 9
 ```
 GET|POST /reviews  PATCH|DELETE /reviews/:id
 GET|POST /favorites  DELETE /favorites/:type/:id

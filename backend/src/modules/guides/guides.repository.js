@@ -53,6 +53,11 @@ async function find(db, id, { forUpdate = false, publicOnly = false } = {}) {
   return rows[0] ?? null;
 }
 
+async function findPublicByIds(db, ids) {
+  const { rows } = await db.query(`SELECT ${COLUMNS} FROM guides g WHERE g.id = ANY($1::uuid[]) AND ${PUBLIC}`, [ids]);
+  return rows;
+}
+
 async function insert(db, input) {
   const { rows } = await db.query(
     `INSERT INTO guides (partner_id, user_id, display_name, photo_media_id, bio, years_experience)
@@ -236,6 +241,7 @@ module.exports = {
   SORT_COLUMNS,
   list,
   find,
+  findPublicByIds,
   insert,
   update,
   search,

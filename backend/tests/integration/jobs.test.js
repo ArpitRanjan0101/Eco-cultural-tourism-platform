@@ -164,11 +164,10 @@ describe('booking lifecycle jobs', () => {
     const tourist = await fx.actor(app);
     const booking = (await fx.book(tourist, { itemType: 'package_departure', resourceId: departure.id, travelerCount: 2 }).expect(201)).body.data;
     await dispatchAll();
-    const [mail] = await eventually(async () => {
-      const found = await mailTo(operator.email);
-      return found.length ? found : null;
-    });
-    assert.equal(mail.Subject, `New booking request ${booking.reference}`);
+    // The operator also receives the "partner approved" email; wait for the booking one specifically.
+    const subject = `New booking request ${booking.reference}`;
+    const mail = await eventually(async () => (await mailTo(operator.email)).find((m) => m.Subject === subject) ?? null);
+    assert.equal(mail.Subject, subject);
   });
 });
 

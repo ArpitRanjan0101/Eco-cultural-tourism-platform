@@ -18,8 +18,8 @@ const manage = { auth: 'user', permissions: ['destinations.manage'] };
 const geography = { auth: 'user', permissions: ['geography.manage'] };
 
 // Static paths are registered before parameterised ones (e.g. /destinations/featured before /:slug).
-// Deferred to the modules that own the data: /destinations/:slug/experiences, /properties, /guides (Phase 4)
-// and /destinations/:slug/reviews (Phase 8).
+// Served by the modules that own the data: /destinations/:slug/experiences, /properties, /guides (supply modules)
+// and /destinations/:slug/reviews (reviews module).
 const routes = [
   {
     method: 'get',

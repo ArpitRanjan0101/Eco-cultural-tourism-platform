@@ -96,6 +96,18 @@ async function syncManagedRoles(db, userId, { managed, desired }) {
   }
 }
 
+/** Privacy-preserving public names ("Asha M.") for review attribution. */
+async function getDisplayNames(ids, db = pool) {
+  if (ids.length === 0) return new Map();
+  const rows = await usersRepository.findNames(db, [...new Set(ids)]);
+  return new Map(
+    rows.map((row) => {
+      const [first, ...rest] = row.full_name.trim().split(/\s+/);
+      return [row.id, rest.length ? `${first} ${rest.at(-1)[0].toUpperCase()}.` : first];
+    }),
+  );
+}
+
 /** Minimal account lookup for invitations (partner team management). */
 async function findAccountByEmail(db, email) {
   const row = await usersRepository.findCredentialsByEmail(db, email);
@@ -243,6 +255,7 @@ module.exports = {
   grantRole,
   syncManagedRoles,
   findAccountByEmail,
+  getDisplayNames,
   setPasswordHash,
   markEmailVerified,
   recordLogin,

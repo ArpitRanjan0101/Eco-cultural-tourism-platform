@@ -478,6 +478,24 @@ async function reconfirmLatePayment(client, bookingId) {
   return { confirmed: true, latePayment: true };
 }
 
+const REVIEW_SUBJECT = {
+  property_room: ['property', 'propertyId'],
+  guide_service: ['guide', 'guideId'],
+  experience_session: ['experience', 'experienceId'],
+  package_departure: ['package', 'packageId'],
+};
+
+/**
+ * For verified reviews: the reviewed subject of a user's own completed booking, or null
+ * when the booking is not theirs or not completed.
+ */
+async function getReviewableBooking(userId, bookingId, db = pool) {
+  const booking = await repository.find(db, bookingId);
+  if (!booking || booking.user_id !== userId || booking.booking_status !== 'completed') return null;
+  const [subjectType, field] = REVIEW_SUBJECT[booking.item_type];
+  return { bookingId, subjectType, subjectId: booking.booking_details[field] };
+}
+
 /** Booking row for the payments module (ownership is checked by the caller). */
 async function getForPayment(db, bookingId, { forUpdate = false } = {}) {
   return repository.find(db, bookingId, { forUpdate });
@@ -571,6 +589,7 @@ module.exports = {
   adminCancel,
   confirmAfterPayment,
   reconfirmLatePayment,
+  getReviewableBooking,
   getForPayment,
   setPaymentStatus,
   applyRefundOutcome,

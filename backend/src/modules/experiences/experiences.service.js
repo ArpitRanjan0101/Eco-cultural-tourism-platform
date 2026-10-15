@@ -315,6 +315,11 @@ async function prepareBooking(db, { resourceId, participants }, { lock = false }
   };
 }
 
+async function getPublicCardsByIds(ids) {
+  if (ids.length === 0) return new Map();
+  return new Map((await toCards(await repository.findPublicByIds(pool, ids))).map((card) => [card.id, card]));
+}
+
 async function search({ q, limit }) {
   const rows = await repository.search(pool, { q, limit });
   const cards = await toCards(rows);
@@ -323,6 +328,7 @@ async function search({ q, limit }) {
 
 module.exports = {
   prepareBooking,
+  getPublicCardsByIds,
   listPublic,
   listForDestination,
   getPublic,

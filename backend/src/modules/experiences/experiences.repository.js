@@ -46,6 +46,11 @@ async function find(db, { id, slug }, { forUpdate = false, publicOnly = false } 
   return rows[0] ?? null;
 }
 
+async function findPublicByIds(db, ids) {
+  const { rows } = await db.query(`SELECT ${COLUMNS} FROM experiences e WHERE e.id = ANY($1::uuid[]) AND ${PUBLIC}`, [ids]);
+  return rows;
+}
+
 async function insert(db, input) {
   const { rows } = await db.query(
     `INSERT INTO experiences (partner_id, destination_id, name, slug, description, duration_minutes, min_participants, max_participants, booking_mode)
@@ -135,4 +140,4 @@ async function deleteSession(db, sessionId) {
   await db.query('DELETE FROM experience_sessions WHERE id = $1', [sessionId]);
 }
 
-module.exports = { SORT_COLUMNS, list, find, insert, update, search, listSessions, findSession, insertSession, updateSession, deleteSession };
+module.exports = { SORT_COLUMNS, list, find, findPublicByIds, insert, update, search, listSessions, findSession, insertSession, updateSession, deleteSession };

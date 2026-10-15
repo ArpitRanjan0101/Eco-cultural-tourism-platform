@@ -577,6 +577,12 @@ async function prepareBooking(db, { resourceId, checkIn, checkOut, rooms: roomCo
   };
 }
 
+/** Map id -> public card for visible properties (favorites, trip planning). */
+async function getPublicCardsByIds(ids) {
+  if (ids.length === 0) return new Map();
+  return new Map((await toCards(await repository.findPublicByIds(pool, ids))).map((card) => [card.id, card]));
+}
+
 // ---- Interfaces for search ----
 
 async function nearPoint({ latitude, longitude, radiusKm, page, limit }) {
@@ -592,6 +598,7 @@ async function search({ q, limit }) {
 
 module.exports = {
   prepareBooking,
+  getPublicCardsByIds,
   listPublic,
   getPublic,
   listPublicRooms,

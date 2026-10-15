@@ -46,6 +46,11 @@ async function find(db, { id, slug }, { forUpdate = false, publicOnly = false } 
   return rows[0] ?? null;
 }
 
+async function findPublicByIds(db, ids) {
+  const { rows } = await db.query(`SELECT ${COLUMNS} FROM packages k WHERE k.id = ANY($1::uuid[]) AND ${PUBLIC}`, [ids]);
+  return rows;
+}
+
 async function insert(db, input) {
   const { rows } = await db.query(
     `INSERT INTO packages (partner_id, name, slug, summary, description, duration_days, duration_nights, min_travelers, max_travelers, booking_mode)
@@ -213,6 +218,7 @@ module.exports = {
   SORT_COLUMNS,
   list,
   find,
+  findPublicByIds,
   insert,
   update,
   refreshStartingPrice,

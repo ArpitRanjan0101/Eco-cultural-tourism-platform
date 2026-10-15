@@ -12,6 +12,7 @@ O1 (Razorpay), O3 (booking mode), O4 (timings) and O5 (partner types → supply)
 | O6 | Email provider | Phase 7 | SMTP (any provider); Mailpit container in development |
 | O7 | Object storage provider (production) | Production | Any S3-compatible service (AWS S3, Cloudflare R2, Wasabi…) via `STORAGE_*`; dev uses SeaweedFS (B1) |
 | O8 | Redirects have only admin routes in Report §5.13, so the BFF cannot read them without admin rights | Phase 10 (frontend) | Add public `GET /content/redirects` (service token only) — needs approval as a route outside the register |
+| O9 | No route lists an author's own reviews (pending/rejected) in Report §5.12 | Phase 10 (frontend) | Add `GET /users/me/reviews` (own reviews, any status) — needs approval as a route outside the register |
 
 ## Clarifications applied
 
@@ -135,6 +136,19 @@ O1 (Razorpay), O3 (booking mode), O4 (timings) and O5 (partner types → supply)
 | G8 | Vouchers: `booking.confirmed` → PDF (pdfkit, built-in fonts) stored as a private `booking_document` media asset (new purpose, never user-uploadable) and linked in `booking_documents`; generation is idempotent under the booking row lock. |
 | G9 | Media processing (sharp 0.33): uploaded images get EXIF orientation applied, all metadata stripped (no GPS leakage) and width/height recorded; housekeeping deletes uploads left pending/rejected for 24 h. |
 | G10 | Retention (housekeeping): login attempts 90 days, refresh tokens 30 days after expiry, verification tokens 7 days, expired idempotency records, processed outbox rows after 30 days. Readiness reports outbox backlog and per-queue counts, flagging failed jobs/events (non-gating). |
+
+## Phase 8 decisions (trips, favorites, reviews)
+
+| ID | Decision |
+|----|----------|
+| H1 | Trips are private to their owner (`trips.manage.own`); another user's trip answers 404. A trip never reserves capacity. Dates are optional but set together; a trip lasts 1–60 days. Creating a dated trip creates one empty day per date; `trip_days.trip_date` is derived from the trip start date and recomputed on every change. Shortening dates below an existing day is refused (409 `DAYS_OUTSIDE_RANGE`). |
+| H2 | Only `draft` trips are deleted (409 `TRIP_NOT_DRAFT` otherwise; archive via status). Mutations lock the trip row, bump `updated_at` and return the full trip. |
+| H3 | Stops are appended at the end of a day (max 30); a stop needs a title or a published destination (title defaults to its name). Unpublished destinations stay on existing plans but lose their card. `PATCH /trips/:id/stops/reorder` takes `{days:[{dayId, stopIds}]}`, must list every stop of the listed days exactly once and may move stops between them; the `(day, sort_order)` unique constraint is deferred so permutations commit atomically. Deleting a stop renumbers the day. |
+| H4 | Favorites and reviews reference subjects polymorphically (`destination`, `property`, `guide`, `experience`, `package`), resolved through `modules/subjects` → each owning module's public-card interface. Only publicly visible items can be saved; saved items that later go private are listed with `available: false`. `POST /favorites` is idempotent (201 new, 200 existing). |
+| H5 | Reviews of bookable supply are verified: they need `bookingId` of the author's own **completed** booking of that exact item (422 `BOOKING_NOT_REVIEWABLE`), one per booking. Destinations (not bookable) take one unverified review per user. Database: `booking_id` required unless the subject is a destination; partial unique indexes enforce both rules. |
+| H6 | Every new or edited review is `pending` until a moderator (`reviews.moderate`) sets `approved`, `hidden` or `rejected` (note required for the last two); moderation is audited and records moderator + note (additions). Authors may delete their own review. Public lists show approved reviews only, newest first, with a rating summary (count, average to one decimal, 1–5 distribution) in `meta.rating`; authors appear as "First L." (no user ids or emails). |
+| H7 | `GET /reviews` is the public listing for one item (`subjectType` + `subjectId` required); `GET /destinations/:slug/reviews` serves destinations by slug. The route register has no "my reviews" list; authors see status and moderation note in POST/PATCH responses (see O9). |
+| H8 | `POST /reviews` is rate limited (20 per user per hour). |
 
 ## Technology choices (pinned in package.json / compose)
 

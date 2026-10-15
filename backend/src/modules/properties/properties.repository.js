@@ -63,6 +63,11 @@ async function find(db, { id, slug }, { forUpdate = false, publicOnly = false } 
   return rows[0] ?? null;
 }
 
+async function findPublicByIds(db, ids) {
+  const { rows } = await db.query(`SELECT ${COLUMNS} FROM properties p WHERE p.id = ANY($1::uuid[]) AND ${PUBLIC}`, [ids]);
+  return rows;
+}
+
 async function insert(db, input) {
   const { rows } = await db.query(
     `INSERT INTO properties (partner_id, district_id, destination_id, name, slug, property_type, description, address,
@@ -314,6 +319,7 @@ module.exports = {
   SORT_COLUMNS,
   list,
   find,
+  findPublicByIds,
   insert,
   update,
   nearPoint,

@@ -120,7 +120,8 @@ function parseEnv(source) {
     publicBaseUrl: env.PUBLIC_BASE_URL,
     corsOrigins: env.CORS_ORIGIN,
     trustProxy: env.TRUST_PROXY,
-    logLevel: env.NODE_ENV === 'test' ? 'silent' : env.LOG_LEVEL,
+    // Tests are silent unless TEST_LOG_LEVEL is set (e.g. TEST_LOG_LEVEL=error to debug a failing run).
+    logLevel: env.NODE_ENV === 'test' ? source.TEST_LOG_LEVEL || 'silent' : env.LOG_LEVEL,
     database: { url: env.DATABASE_URL, poolMax: env.DATABASE_POOL_MAX },
     redis: { url: env.REDIS_URL },
     serviceTokens: [env.INTERNAL_SERVICE_TOKEN, env.INTERNAL_SERVICE_TOKEN_PREVIOUS].filter(Boolean),

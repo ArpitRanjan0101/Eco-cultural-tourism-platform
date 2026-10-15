@@ -21,6 +21,7 @@ const departureSchema = z
     pricePerPerson: z.string(),
     currency: z.string(),
     status: z.enum(['scheduled', 'closed', 'cancelled']),
+    seatsAvailable: z.number().int().optional().openapi({ description: 'Public departure lists: seats minus held/booked' }),
   })
   .openapi('PackageDeparture');
 const cardSchema = z

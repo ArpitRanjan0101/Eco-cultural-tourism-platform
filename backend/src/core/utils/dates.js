@@ -18,4 +18,9 @@ function addDays(date, days) {
   return new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
 }
 
-module.exports = { BUSINESS_TIME_ZONE, todayLocal, daysBetween, addDays };
+/** Instant for a local (Asia/Kolkata, UTC+05:30, no DST) date and HH:MM time. */
+function localDateTime(date, time = '00:00') {
+  return new Date(`${date}T${time}:00+05:30`);
+}
+
+module.exports = { BUSINESS_TIME_ZONE, todayLocal, daysBetween, addDays, localDateTime };

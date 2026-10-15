@@ -9,9 +9,7 @@ technical clarification applied without changing the report's scope.
 |----|-------|-----------|------------------|
 | O1 | Payment gateway (Report §8.4) | Phase 6 | Razorpay (INR, orders + signed webhooks + refunds API) behind a provider-neutral adapter |
 | O2 | Merchant-of-record / partner settlement, GST, invoice issuer (Report §1.3, §13 Critical) | Production payments | Sandbox only until decided; tax rate from `platform_settings`, default 0 |
-| O4 | Hold duration, partner approval window, payment deadline | Phase 5 | `platform_settings`: hold 15 min, approval 24 h, payment after approval 24 h |
-
-O3 (booking mode) and O5 (partner types → supply) were accepted on 2026-10-15; see D1/D2.
+O3 (booking mode), O4 (timings) and O5 (partner types → supply) were accepted on 2026-10-15; see D1/D2/E2.
 | O6 | Email provider | Phase 7 | SMTP (any provider); Mailpit container in development |
 | O7 | Object storage provider (production) | Production | Any S3-compatible service (AWS S3, Cloudflare R2, Wasabi…) via `STORAGE_*`; dev uses SeaweedFS (B1) |
 | O8 | Redirects have only admin routes in Report §5.13, so the BFF cannot read them without admin rights | Phase 10 (frontend) | Add public `GET /content/redirects` (service token only) — needs approval as a route outside the register |
@@ -92,6 +90,22 @@ O3 (booking mode) and O5 (partner types → supply) were accepted on 2026-10-15;
 | D10 | Search adds property, guide, experience and package (name + trigram ranking); nearby supports destination and property. District/region/category filters apply to destinations only. |
 | D11 | Seed `004_amenities_languages`: 19 amenities, 11 guide languages including Santali, Mundari, Kurukh, Ho, Kharia and Nagpuri (Sadri). |
 | D12 | Route definitions gained `anyPermissions`, per-route `middleware` (partner-context guard) and documented `headers` (X-Partner-Id). |
+
+## Phase 5 decisions (booking engine)
+
+| ID | Decision |
+|----|----------|
+| E1 | `platform_settings` and `idempotency_records` (Report 4.13) are created in Phase 5 because bookings depend on them. Settings have code defaults overridden by DB rows (migration seeds the same values); admin routes arrive in Phase 9. |
+| E2 | (O4) Instant booking holds capacity 15 min (`booking.hold_minutes`); request-to-book reserves nothing until approval, partners have 24 h to respond, then the guest has 24 h to pay. Tax rate 0% until finance sign-off (O2). |
+| E3 | `bookings` additions: `partner_id`, `booking_mode`, `service_start_at`/`service_end_at`, `expires_at` (C4). One booking = one item (C10). `booking_items.booking_details` snapshots supply names, dates, nightly prices, the cancellation policy and the original request (used to re-check capacity on approval). |
+| E4 | Capacity ledger = `inventory_holds`; active = confirmed, or held with `expires_at > now()`. Lapsed holds stop counting immediately; the worker sweep (every 30 s) only moves bookings to expired/completed and emits events. |
+| E5 | Concurrency: each supply module's `prepareBooking` locks its own row (`room_types`, `guides`, `experience_sessions`, `package_departures`) FOR UPDATE inside the booking transaction, then checks allocations, so the last unit is sold once. Guides additionally have a GiST exclusion constraint on held/confirmed holds (`23P01` → 409). Transactions retry on deadlock/serialisation. |
+| E6 | Supply modules read allocations through `bookings/allocations.service` (no dependency on the booking service, so no cycle). Availability endpoints now subtract reservations; partners cannot reduce inventory/capacity below reservations, delete/move/cancel sessions or departures with reservations, or remove guide windows covering booked time (409). |
+| E7 | `POST /bookings` requires `Idempotency-Key`; scope `bookings.create:<userId>`; replays return the original booking with `Idempotent-Replay: true`; a different body with the same key → 409. Booking requires a verified email (A5). |
+| E8 | The package booking item uses `travelerCount` (not `travelers`, which is the list of people). |
+| E9 | Cancellation: unpaid bookings cancel free; paid bookings refund from the snapshotted policy tiers by hours before service start (admin may waive fees and cancel after start; audited). `booking.cancelled` outbox events carry the refund amount for the payments module (Phase 6). Users cannot cancel after service start. |
+| E10 | `confirmAfterPayment(client, bookingId)` is the payments-module interface: confirms only while holds are active, otherwise returns `HOLD_EXPIRED`/`BOOKING_<STATUS>` for reconciliation (Phase 6). |
+| E11 | Booking references `JHT-YYMMDD-XXXXXX` (unambiguous alphabet), retried on collision. `TEST_LOG_LEVEL` env enables logs during tests. |
 
 ## Technology choices (pinned in package.json / compose)
 

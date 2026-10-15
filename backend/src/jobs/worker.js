@@ -6,11 +6,16 @@ const logger = require('../core/logging/logger');
 const { pool } = require('../config/database');
 const { createRedisConnection } = require('../config/redis');
 const { recordHeartbeat, removeHeartbeat, HEARTBEAT_INTERVAL_MS } = require('./heartbeat');
+const bookingsService = require('../modules/bookings/bookings.service');
+
+// Lapsed holds stop counting immediately (capacity checks compare expires_at); this sweep
+// moves the bookings themselves to expired/completed and emits their outbox events.
+const BOOKING_MAINTENANCE_INTERVAL_MS = 30_000;
 
 /**
  * Background worker process (separate container, same image as the API).
- * Queue processors are registered here as their modules are delivered
- * (booking expiry: Phase 5, payments: Phase 6, outbox/notifications/media: Phase 7).
+ * Phase 5: booking expiry/completion sweep. Phase 7 moves scheduled work onto BullMQ
+ * queues (booking-expiration, outbox-dispatch, notifications, media, payments).
  */
 async function main() {
   const workerId = `${os.hostname()}:${process.pid}`;
@@ -22,7 +27,23 @@ async function main() {
   const beat = () =>
     recordHeartbeat(redis, workerId).catch((err) => logger.warn({ err: { message: err.message } }, 'Heartbeat failed'));
   await beat();
-  const timer = setInterval(beat, HEARTBEAT_INTERVAL_MS);
+  const heartbeatTimer = setInterval(beat, HEARTBEAT_INTERVAL_MS);
+
+  let sweeping = false;
+  const sweep = async () => {
+    if (sweeping) return;
+    sweeping = true;
+    try {
+      const result = await bookingsService.runMaintenance();
+      if (result.expired || result.completed) logger.info(result, 'Booking maintenance');
+    } catch (err) {
+      logger.error({ err }, 'Booking maintenance failed');
+    } finally {
+      sweeping = false;
+    }
+  };
+  await sweep();
+  const sweepTimer = setInterval(sweep, BOOKING_MAINTENANCE_INTERVAL_MS);
 
   logger.info({ workerId, env: config.env }, 'Worker started');
 
@@ -31,7 +52,8 @@ async function main() {
     if (stopping) return;
     stopping = true;
     logger.info({ signal }, 'Worker shutting down');
-    clearInterval(timer);
+    clearInterval(heartbeatTimer);
+    clearInterval(sweepTimer);
     await removeHeartbeat(redis, workerId).catch(() => {});
     await Promise.allSettled([redis.quit(), pool.end()]);
     process.exit(0);

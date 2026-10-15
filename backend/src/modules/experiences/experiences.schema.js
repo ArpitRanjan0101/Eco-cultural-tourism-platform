@@ -22,6 +22,7 @@ const sessionSchema = z
     pricePerPerson: z.string(),
     currency: z.string(),
     status: z.enum(['scheduled', 'cancelled']),
+    seatsAvailable: z.number().int().optional().openapi({ description: 'Public session lists: capacity minus held/booked seats' }),
   })
   .openapi('ExperienceSession');
 const cardSchema = z

@@ -64,8 +64,8 @@ Phase = phase of the agreed working method in which the item is delivered.
 - [ ] trips · [ ] trip_days · [ ] trip_stops
 
 ### 4.8 Bookings & holds (7) — Phase 5
-- [ ] bookings · [ ] booking_items · [ ] booking_travelers · [ ] inventory_holds
-- [ ] booking_status_history · [ ] booking_cancellations · [ ] booking_documents
+- [x] bookings · [x] booking_items · [x] booking_travelers · [x] inventory_holds
+- [x] booking_status_history · [x] booking_cancellations · [x] booking_documents
 
 ### 4.9 Payments & refunds (4) — Phase 6
 - [ ] payment_orders · [ ] payment_transactions · [ ] payment_webhook_events · [ ] refunds
@@ -82,8 +82,8 @@ Phase = phase of the agreed working method in which the item is delivered.
 
 ### 4.13 Notifications, audit, operations (7)
 - [ ] notification_templates (7) · [ ] notifications (7) · [ ] notification_deliveries (7)
-- [ ] platform_settings (5 — needed by booking/tax config) · [x] audit_logs (2)
-- [~] outbox_events (2: table + writer; dispatch in 7) · [ ] idempotency_records (5)
+- [x] platform_settings (5; admin routes in 9) · [x] audit_logs (2)
+- [~] outbox_events (2: table + writer; dispatch in 7) · [x] idempotency_records (5)
 
 Infrastructure-only table outside the 78: `schema_migrations` (migration bookkeeping, Phase 1).
 
@@ -181,7 +181,7 @@ PATCH /trips/:id/stops/reorder
 GET /search  GET /search/suggestions  GET /search/nearby  GET /search/filters
 ```
 
-### 5.9 Bookings (16) — Phase 5
+### 5.9 Bookings (16) — Phase 5 — [~] 14 implemented; payment-order and admin refund → Phase 6
 ```
 POST /bookings/quote  POST /bookings  GET /bookings  GET /bookings/:id  GET /bookings/:id/status
 POST /bookings/:id/cancel  GET /bookings/:id/documents  POST /bookings/:id/payment-order (Phase 6)
@@ -246,8 +246,8 @@ GET|PATCH /admin/settings  GET /admin/audit-logs
 ## 5. Critical end-to-end scenarios (Section 11.1)
 - [x] Register → verify → login → refresh → logout; revoked refresh cannot be reused (2)
 - [~] Anonymous/unauthorised cannot reach private/partner/admin data (2: profile + admin covered; partner in 4)
-- [ ] Two customers race for last hotel room → exactly one wins (5)
-- [ ] Two users race for same guide slot → only non-overlapping commit (5)
+- [x] Two customers race for last hotel room → exactly one wins (5: 6 concurrent, 1 succeeds)
+- [x] Two users race for same guide slot → only non-overlapping commit (5: 4 concurrent + overlap checks)
 - [ ] Exactly-once payment under duplicate webhooks/callbacks (6)
 - [ ] Payment after hold expiry reconciles without overbooking (6)
 - [ ] Refund failure/retry/duplicate callback → single refund (6)

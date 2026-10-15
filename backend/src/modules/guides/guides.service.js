@@ -9,6 +9,8 @@ const auditService = require('../audit/audit.service');
 const mediaService = require('../media/media.service');
 const destinationsService = require('../destinations/destinations.service');
 const partnersService = require('../partners/partners.service');
+const allocationsService = require('../bookings/allocations.service');
+const { localDateTime } = require('../../core/utils/dates');
 const repository = require('./guides.repository');
 
 const CURRENCY = 'INR';
@@ -107,10 +109,26 @@ async function listPublicServices(id) {
   return (await repository.listServices(pool, [id], { activeOnly: true })).map(toService);
 }
 
-/**
- * Published availability windows. The booking engine (Phase 5) removes time already
- * held or booked and enforces non-overlap with a database exclusion constraint.
- */
+const toHHMM = (instant) =>
+  new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(instant);
+
+/** Splits each window around busy ranges, returning the free sub-windows (same-day, local times). */
+function subtractBusy(windows, busy) {
+  const free = [];
+  for (const window of windows) {
+    let cursor = localDateTime(window.service_date, window.start_time);
+    const windowEnd = localDateTime(window.service_date, window.end_time);
+    for (const range of busy) {
+      if (range.end_at <= cursor || range.start_at >= windowEnd) continue;
+      if (range.start_at > cursor) free.push({ date: window.service_date, startTime: toHHMM(cursor), endTime: toHHMM(range.start_at) });
+      if (range.end_at > cursor) cursor = range.end_at;
+    }
+    if (cursor < windowEnd) free.push({ date: window.service_date, startTime: toHHMM(cursor), endTime: window.end_time });
+  }
+  return free;
+}
+
+/** Published availability windows minus time already held or booked. */
 async function publicAvailability(id, { from, to }) {
   await requirePublic(id);
   const start = from ?? todayLocal();
@@ -119,8 +137,13 @@ async function publicAvailability(id, { from, to }) {
   if (daysBetween(start, end) < 0 || daysBetween(start, end) > MAX_AVAILABILITY_WINDOW_DAYS) {
     throw invalid('to', `window must be 0-${MAX_AVAILABILITY_WINDOW_DAYS} days`, 'query');
   }
-  const slots = await repository.listAvailability(pool, id, { from: start, to: end, availableOnly: true });
-  return { guideId: id, from: start, to: end, slots: slots.map((s) => ({ date: s.service_date, startTime: s.start_time, endTime: s.end_time })) };
+  const [windows, busy] = await Promise.all([
+    repository.listAvailability(pool, id, { from: start, to: end, availableOnly: true }),
+    allocationsService.guideBusyRanges(id, localDateTime(start), localDateTime(addDays(end, 1))),
+  ]);
+  const now = new Date();
+  const slots = subtractBusy(windows, busy).filter((slot) => localDateTime(slot.date, slot.endTime) > now);
+  return { guideId: id, from: start, to: end, slots };
 }
 
 async function listLanguages() {
@@ -235,6 +258,15 @@ async function setAvailability(ctx, id, { from, to, slots }) {
       if (err.code === '23P01') throw invalid('slots', 'availability windows must not overlap');
       throw err;
     }
+    // Every held/booked time range in the window must remain inside an available window.
+    const busy = await allocationsService.guideBusyRanges(id, localDateTime(from), localDateTime(addDays(to, 1)), client);
+    const covered = (range) =>
+      slots.some(
+        (slot) => slot.status === 'available' && localDateTime(slot.date, slot.startTime) <= range.start_at && localDateTime(slot.date, slot.endTime) >= range.end_at,
+      );
+    if (busy.some((range) => !covered(range))) {
+      throw ApiError.conflict('The new availability would remove time that is already reserved', 'GUIDE_HAS_BOOKINGS');
+    }
     return { entityId: id, action: 'guides.availability_changed', newValues: { from, to, slots: slots.length } };
   });
   const rows = await repository.listAvailability(pool, id, { from, to });
@@ -337,6 +369,59 @@ async function updateLanguage(ctx, id, changes) {
   return repository.findLanguage(pool, id);
 }
 
+// ---- Interface for the booking engine ----
+
+/**
+ * Prices and checks a guide service at date + start time. With `lock` the guide row is
+ * locked FOR UPDATE (serialising all bookings of that guide); a GiST exclusion
+ * constraint on inventory_holds is the final guarantee against overlaps.
+ */
+async function prepareBooking(db, { resourceId, date, startTime, participants }, { lock = false } = {}) {
+  const service = await repository.findService(db, resourceId);
+  const guide = service && (await repository.find(db, service.guide_id, { forUpdate: lock, publicOnly: true }));
+  if (!service || !guide || service.status !== 'active') throw ApiError.notFound('Guide service is not available for booking', 'RESOURCE_NOT_FOUND');
+
+  const startAt = localDateTime(date, startTime);
+  const endAt = new Date(startAt.getTime() + service.duration_minutes * 60_000);
+  const windows = await repository.listAvailability(db, guide.id, { from: date, to: date, availableOnly: true });
+  const inWindow = windows.some((w) => localDateTime(w.service_date, w.start_time) <= startAt && localDateTime(w.service_date, w.end_time) >= endAt);
+  const busy = await allocationsService.guideBusyRanges(guide.id, startAt, endAt, db);
+  const fitsGroup = participants <= service.max_group_size;
+
+  return {
+    itemType: 'guide_service',
+    itemReferenceId: service.id,
+    partnerId: guide.partner_id,
+    bookingMode: service.booking_mode,
+    description: `${service.title} with ${guide.display_name} on ${date} at ${startTime}`,
+    quantity: 1,
+    unitPrice: service.price,
+    subtotal: service.price,
+    serviceStartAt: startAt,
+    serviceEndAt: endAt,
+    available: fitsGroup && inWindow && busy.length === 0,
+    unavailableReason: !fitsGroup
+      ? `Group size limit is ${service.max_group_size}`
+      : !inWindow
+        ? 'The guide is not available at that time'
+        : busy.length
+          ? 'The guide is already booked at that time'
+          : null,
+    hold: { resourceType: 'guide', resourceId: guide.id, startAt, endAt, quantity: 1 },
+    cancellationPolicy: null,
+    details: {
+      guideId: guide.id,
+      guideName: guide.display_name,
+      serviceId: service.id,
+      serviceTitle: service.title,
+      date,
+      startTime,
+      durationMinutes: service.duration_minutes,
+      participants,
+    },
+  };
+}
+
 // ---- Interface for search ----
 
 async function search({ q, limit }) {
@@ -346,6 +431,7 @@ async function search({ q, limit }) {
 }
 
 module.exports = {
+  prepareBooking,
   listPublic,
   listForDestination,
   getPublic,

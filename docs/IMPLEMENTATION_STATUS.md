@@ -12,8 +12,8 @@ design: [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) · decision
 | 1 | Docker, foundation, PostgreSQL/PostGIS, Redis, env validation, health, migrations | ✅ Verified (2026-10-15) |
 | 2 | Auth, JWT, service token wiring, users, roles, permissions | ✅ Verified (2026-10-15) |
 | 3 | Geography, destinations, CMS, media, search | ✅ Verified (2026-10-15) |
-| 4 | Partners, hotels, inventory, guides, experiences, packages | ✅ Verified (2026-10-15) — awaiting approval for Phase 5 |
-| 5 | Booking engine, concurrency, reservation lifecycle | ⏳ (needs O4) |
+| 4 | Partners, hotels, inventory, guides, experiences, packages | ✅ Verified (2026-10-15) |
+| 5 | Booking engine, concurrency, reservation lifecycle | ✅ Verified (2026-10-15) — awaiting approval for Phase 6 |
 | 6 | Payments, webhooks, cancellations, refunds, reconciliation | ⏳ (blocked on O1 gateway choice) |
 | 7 | BullMQ, outbox, notifications | ⏳ |
 | 8 | Trips, favorites, reviews | ⏳ |
@@ -147,13 +147,40 @@ design: [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) · decision
 - Test infra: role-permission edits in tests now restore themselves (`withoutPermissions`); test DB rebuilt once from
   migrations to repair grants modified by earlier runs.
 
+## Phase 5 — delivered
+
+- **Migration:** `0012_bookings` — 7 booking tables (GiST guide no-overlap on holds), `platform_settings` (seeded O4 timings,
+  0% tax, default cancellation policy), `idempotency_records`.
+- **Bookings module:** quote; idempotent create (instant hold / request-to-book); own list/detail/status/documents/cancel;
+  partner list/detail/approve/reject; admin search/detail/audited cancel; `confirmAfterPayment` (for Phase 6);
+  `runMaintenance` (expiry + completion) run by the worker every 30 s. `allocations.service` for supply modules.
+- **Supply modules:** `prepareBooking` per type with row locks; availability subtracts reservations; change guards
+  (inventory/capacity below reservations, session/departure changes, guide windows) → 409.
+- **Core/settings:** `core/database/idempotency.js`, `settings` service (code defaults + DB overrides), `localDateTime`,
+  `actorEmailVerified` in request context, `TEST_LOG_LEVEL`. Decisions E1–E11.
+
+### Phase 5 verification (executed 2026-10-15)
+
+- `db:migrate` applied 0012 ✅ · 189 routes / 192 OpenAPI operations ✅ · lint 0 ✅ · worker restarted with sweep ✅
+- `npm test` → **109 tests, 109 pass, 0 fail**, three consecutive runs — adds: quote without reservation, decimal-exact
+  totals, Idempotency-Key required/replay/reuse-conflict, verified-email requirement, 15-min hold, price snapshot unaffected
+  by later rate changes, inventory reduction below reservations refused; **6 concurrent buyers for the last room → exactly 1
+  booking**; **4 concurrent buyers for one guide slot → exactly 1**, overlap/out-of-window/group-size refusals, free-time
+  calculation, booked windows protected; experience seats counted once under concurrency, session delete/capacity guards;
+  request-to-book reserves nothing until approval, 24 h windows, foreign partner 404, approval capacity re-check, rejection,
+  departure move blocked; free cancellation releases capacity; confirmation after payment, refund from snapshotted policy
+  (80% → 3200.00) despite later policy edit, refund event, admin fee waiver + audit; refund tier maths; lapsed hold frees
+  capacity before the sweep, late confirmation refused (`HOLD_EXPIRED`, `BOOKING_EXPIRED`), expiry history; completion
+  sweep; tourist/partner/admin isolation ✅
+
 ## Pending / carried forward
 
 - Phase 10: separate migration-owner and least-privilege runtime DB roles (C17); production compose (no private port publish,
   TLS, resource limits, log rotation, secrets); backups/restore drill; Swagger UI hosting.
 - Open owner decisions O1–O7 in DECISIONS.md (O1 gateway blocks Phase 6).
-- Phase 5: subtract `inventory_holds` allocations in all availability endpoints; block session deletion / departure moves
-  / inventory reductions below allocations once reservations exist; snapshot cancellation policy per booking; O4 timings.
+- Phase 6: `POST /bookings/:id/payment-order`, `POST /admin/bookings/:id/refund`; consume `booking.cancelled` refunds;
+  late-payment reconciliation (re-acquire capacity if free, else refund); gateway choice O1 still open.
+- Phase 7: move the 30 s booking sweep onto the BullMQ `booking-expiration` queue; idempotency/auth-attempt retention cleanup.
 - Phase 7: media-processing job (dimensions, resizing) on `media.uploaded`; cleanup of stale `pending` uploads.
 - Phase 8: `/destinations/:slug/reviews`.
 - Phase 7: email delivery for `auth.*` outbox events; scrub `payload.token` after dispatch; retention cleanup job for

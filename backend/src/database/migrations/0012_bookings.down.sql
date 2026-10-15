@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS booking_documents;
+DROP TABLE IF EXISTS booking_cancellations;
+DROP TABLE IF EXISTS booking_status_history;
+DROP TABLE IF EXISTS inventory_holds;
+DROP TABLE IF EXISTS booking_travelers;
+DROP TABLE IF EXISTS booking_items;
+DROP TABLE IF EXISTS bookings;
+DROP TABLE IF EXISTS idempotency_records;
+DROP TABLE IF EXISTS platform_settings;

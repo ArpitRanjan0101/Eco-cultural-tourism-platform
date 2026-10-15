@@ -7,27 +7,24 @@ const ApiError = require('../../core/errors/ApiError');
 const { pageMeta } = require('../../core/utils/pagination');
 const { slugify } = require('../../core/utils/slug');
 const { sum, multiply } = require('../../core/utils/money');
-const { todayLocal, daysBetween } = require('../../core/utils/dates');
+const { todayLocal, daysBetween, addDays, localDateTime } = require('../../core/utils/dates');
 const { assertAdminTransition, statusAfterPartnerEdit } = require('../../core/utils/moderation');
 const auditService = require('../audit/audit.service');
 const mediaService = require('../media/media.service');
 const geographyService = require('../geography/geography.service');
 const destinationsService = require('../destinations/destinations.service');
 const partnersService = require('../partners/partners.service');
+const settingsService = require('../settings/settings.service');
+const allocationsService = require('../bookings/allocations.service');
 const repository = require('./properties.repository');
 
 const CURRENCY = 'INR';
 const MAX_CALENDAR_DAYS = 366;
 const MAX_STAY_NIGHTS = 30;
 const DESTINATION_RADIUS_KM = 25;
-// Applied when a property has not set its own policy (DECISIONS D4).
-const DEFAULT_CANCELLATION_POLICY = {
-  tiers: [
-    { hoursBeforeCheckIn: 72, refundPercent: 100 },
-    { hoursBeforeCheckIn: 24, refundPercent: 50 },
-    { hoursBeforeCheckIn: 0, refundPercent: 0 },
-  ],
-};
+
+// Platform default when a property has not set its own policy (DECISIONS D7).
+const defaultCancellationPolicy = () => settingsService.get('booking.default_cancellation_policy');
 
 const iso = (value) => (value ? value.toISOString() : null);
 const notFound = () => ApiError.notFound('Property not found', 'PROPERTY_NOT_FOUND');
@@ -97,12 +94,13 @@ async function roomsWithDetails(propertyIds, { activeOnly }) {
 }
 
 async function toDetail(row, { admin = false } = {}) {
-  const [[card], amenities, galleries, policy, rooms] = await Promise.all([
+  const [[card], amenities, galleries, policy, rooms, fallbackPolicy] = await Promise.all([
     toCards([row], { admin }),
     repository.linkedAmenities(pool, 'property_amenities', [row.id]),
     mediaService.buildGalleries(await mediaLinks.listLinks(pool, 'property_media', [row.id])),
     repository.findPolicy(pool, row.id),
     roomsWithDetails([row.id], { activeOnly: !admin }),
+    defaultCancellationPolicy(),
   ]);
   return {
     ...card,
@@ -114,7 +112,7 @@ async function toDetail(row, { admin = false } = {}) {
     gallery: galleries.get(row.id) ?? [],
     amenities: amenities.map(toAmenity),
     policies: {
-      cancellationPolicy: policy?.cancellation_policy ?? DEFAULT_CANCELLATION_POLICY,
+      cancellationPolicy: policy?.cancellation_policy ?? fallbackPolicy,
       childPolicy: policy?.child_policy ?? null,
       houseRules: policy?.house_rules ?? null,
       identificationPolicy: policy?.identification_policy ?? null,
@@ -184,16 +182,28 @@ function assertStayDates(checkIn, checkOut) {
   return nights;
 }
 
+/** Nightly grid with reserved units subtracted: sellable = total - blocked - allocated. */
+async function sellableGrid(db, roomIds, from, to) {
+  if (roomIds.length === 0) return [];
+  const [grid, allocated] = await Promise.all([
+    repository.nightlyGrid(db, roomIds, from, to),
+    allocationsService.roomNightUnits(roomIds, from, to, db),
+  ]);
+  return grid.map((night) => {
+    const reserved = allocated.get(`${night.room_type_id}|${night.stay_date}`) ?? 0;
+    return { ...night, allocated_units: reserved, sellable: night.total_units - night.blocked_units - reserved };
+  });
+}
+
 /**
- * Indicative availability and price per room type. Sellable units per night are
- * physical minus blocked units; reservations are subtracted by the booking engine
- * (Phase 5), which re-checks authoritatively under row locks.
+ * Indicative availability and price per room type (reservations subtracted). Booking
+ * creation re-checks the same numbers under a room-type row lock.
  */
 async function availability(id, { checkIn, checkOut, adults, children, rooms: roomCount }) {
   const property = await requirePublic({ id });
   const nights = assertStayDates(checkIn, checkOut);
   const rooms = await repository.listRooms(pool, [property.id], { activeOnly: true });
-  const grid = rooms.length ? await repository.nightlyGrid(pool, rooms.map((r) => r.id), checkIn, checkOut) : [];
+  const grid = await sellableGrid(pool, rooms.map((r) => r.id), checkIn, checkOut);
 
   return {
     propertyId: property.id,
@@ -204,7 +214,7 @@ async function availability(id, { checkIn, checkOut, adults, children, rooms: ro
     bookingMode: property.booking_mode,
     rooms: rooms.map((room) => {
       const nightsForRoom = grid.filter((n) => n.room_type_id === room.id);
-      const availableUnits = Math.min(...nightsForRoom.map((n) => n.total_units - n.blocked_units));
+      const availableUnits = Math.max(0, Math.min(...nightsForRoom.map((n) => n.sellable)));
       const fitsOccupancy = adults <= room.max_adults * roomCount && children <= room.max_children * roomCount;
       const nightlyTotal = sum(nightsForRoom.map((n) => n.nightly_price));
       return {
@@ -215,7 +225,7 @@ async function availability(id, { checkIn, checkOut, adults, children, rooms: ro
         availableUnits,
         fitsOccupancy,
         available: fitsOccupancy && availableUnits >= roomCount,
-        nightly: nightsForRoom.map((n) => ({ date: n.stay_date, price: n.nightly_price, availableUnits: n.total_units - n.blocked_units })),
+        nightly: nightsForRoom.map((n) => ({ date: n.stay_date, price: n.nightly_price, availableUnits: Math.max(0, n.sellable) })),
         totalPrice: multiply(nightlyTotal, roomCount),
       };
     }),
@@ -337,7 +347,11 @@ async function updateRoom(ctx, propertyId, roomId, changes) {
       if (err.code === '23505') throw ApiError.conflict('A room type with this name already exists', 'NAME_TAKEN');
       throw err;
     }
-    if (fields.totalUnits !== undefined && fields.totalUnits < before.total_units) await repository.clampInventory(client, roomId, fields.totalUnits);
+    if (fields.totalUnits !== undefined && fields.totalUnits < before.total_units) {
+      await repository.clampInventory(client, roomId, fields.totalUnits);
+      const today = todayLocal();
+      await assertNotBelowAllocated(client, roomId, today, addDays(today, MAX_CALENDAR_DAYS));
+    }
     if (amenityIds) {
       if ((await repository.countAmenities(client, amenityIds)) !== amenityIds.length) throw invalid('amenityIds', 'one or more amenities do not exist');
       await repository.replaceAmenities(client, 'room_type_amenities', roomId, amenityIds);
@@ -387,6 +401,17 @@ function assertCalendarRanges(ranges) {
   if (days > MAX_CALENDAR_DAYS) throw invalid('ranges', `at most ${MAX_CALENDAR_DAYS} days per request`);
 }
 
+/** Inventory may never drop below units already held or booked (caller holds the room-type lock). */
+async function assertNotBelowAllocated(db, roomId, from, toExclusive) {
+  const short = (await sellableGrid(db, [roomId], from, toExclusive)).find((night) => night.sellable < 0);
+  if (short) {
+    throw ApiError.conflict(`Inventory on ${short.stay_date} would fall below ${short.allocated_units} reserved unit(s)`, 'INVENTORY_BELOW_ALLOCATED', {
+      date: short.stay_date,
+      reservedUnits: short.allocated_units,
+    });
+  }
+}
+
 async function writeInventory(ctx, roomId, { ranges }) {
   assertCalendarRanges(ranges);
   await auditService.auditedTransaction(ctx, 'room_type', async (client) => {
@@ -401,6 +426,7 @@ async function writeInventory(ctx, roomId, { ranges }) {
         if (err.code === '23514') throw invalid(`ranges.${index}.blockedUnits`, 'blocked units cannot exceed total units');
         throw err;
       }
+      await assertNotBelowAllocated(client, roomId, range.from, addDays(range.to, 1));
     }
     return { entityId: roomId, action: 'rooms.inventory_changed', newValues: { ranges } };
   });
@@ -424,8 +450,7 @@ async function calendar(ctx, roomId, { from, to }) {
   if (days < 1 || days > MAX_CALENDAR_DAYS) {
     throw ApiError.validation([{ location: 'query', path: 'to', message: `range must be 1-${MAX_CALENDAR_DAYS} days` }]);
   }
-  const next = new Date(Date.parse(`${to}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
-  const grid = await repository.nightlyGrid(pool, [roomId], from, next);
+  const grid = await sellableGrid(pool, [roomId], from, addDays(to, 1));
   return {
     roomTypeId: roomId,
     physicalUnits: room.total_units,
@@ -435,6 +460,8 @@ async function calendar(ctx, roomId, { from, to }) {
       date: n.stay_date,
       totalUnits: n.total_units,
       blockedUnits: n.blocked_units,
+      reservedUnits: n.allocated_units,
+      availableUnits: Math.max(0, n.sellable),
       nightlyPrice: n.nightly_price,
       inventoryOverride: n.has_inventory_override,
       rateOverride: n.has_rate_override,
@@ -491,6 +518,65 @@ async function updateAmenity(ctx, id, changes) {
   return toAmenity(await repository.findAmenity(pool, id));
 }
 
+// ---- Interface for the booking engine ----
+
+/**
+ * Prices and checks a room-type stay. With `lock`, the room-type row is locked FOR UPDATE
+ * first, so concurrent bookings of the same room type are serialised and the capacity
+ * check below is authoritative for the caller's transaction.
+ */
+async function prepareBooking(db, { resourceId, checkIn, checkOut, rooms: roomCount, adults, children = 0 }, { lock = false } = {}) {
+  const room = await repository.findRoom(db, resourceId, { forUpdate: lock });
+  const property = room && (await repository.find(db, { id: room.property_id }, { publicOnly: true }));
+  if (!room || !property || room.status !== 'active') throw ApiError.notFound('Room type is not available for booking', 'RESOURCE_NOT_FOUND');
+  const nights = daysBetween(checkIn, checkOut);
+  if (nights < 1 || nights > MAX_STAY_NIGHTS) throw invalid('checkOut', `stay must be 1-${MAX_STAY_NIGHTS} nights`);
+
+  const grid = await sellableGrid(db, [room.id], checkIn, checkOut);
+  const availableUnits = Math.max(0, Math.min(...grid.map((night) => night.sellable)));
+  const fitsOccupancy = adults <= room.max_adults * roomCount && children <= room.max_children * roomCount;
+  const unitPrice = sum(grid.map((night) => night.nightly_price));
+  const policy = (await repository.findPolicy(db, property.id))?.cancellation_policy ?? (await defaultCancellationPolicy());
+
+  return {
+    itemType: 'property_room',
+    itemReferenceId: room.id,
+    partnerId: property.partner_id,
+    bookingMode: property.booking_mode,
+    description: `${property.name} - ${room.name} x ${roomCount} room(s), ${nights} night(s)`,
+    quantity: roomCount,
+    unitPrice,
+    subtotal: multiply(unitPrice, roomCount),
+    serviceStartAt: localDateTime(checkIn, property.check_in_time),
+    serviceEndAt: localDateTime(checkOut, property.check_out_time),
+    available: fitsOccupancy && availableUnits >= roomCount,
+    unavailableReason: !fitsOccupancy ? 'Party exceeds room occupancy' : availableUnits < roomCount ? `Only ${availableUnits} room(s) available` : null,
+    hold: {
+      resourceType: 'room_type',
+      resourceId: room.id,
+      startAt: localDateTime(checkIn),
+      endAt: localDateTime(checkOut),
+      quantity: roomCount,
+    },
+    cancellationPolicy: policy,
+    details: {
+      propertyId: property.id,
+      propertyName: property.name,
+      propertySlug: property.slug,
+      roomTypeName: room.name,
+      checkIn,
+      checkOut,
+      nights,
+      rooms: roomCount,
+      adults,
+      children,
+      checkInTime: property.check_in_time,
+      checkOutTime: property.check_out_time,
+      nightly: grid.map((night) => ({ date: night.stay_date, price: night.nightly_price })),
+    },
+  };
+}
+
 // ---- Interfaces for search ----
 
 async function nearPoint({ latitude, longitude, radiusKm, page, limit }) {
@@ -505,7 +591,7 @@ async function search({ q, limit }) {
 }
 
 module.exports = {
-  DEFAULT_CANCELLATION_POLICY,
+  prepareBooking,
   listPublic,
   getPublic,
   listPublicRooms,

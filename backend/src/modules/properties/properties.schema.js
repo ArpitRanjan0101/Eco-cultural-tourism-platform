@@ -118,6 +118,8 @@ const calendarSchema = z
         date: z.string(),
         totalUnits: z.number().int(),
         blockedUnits: z.number().int(),
+        reservedUnits: z.number().int(),
+        availableUnits: z.number().int(),
         nightlyPrice: z.string(),
         inventoryOverride: z.boolean(),
         rateOverride: z.boolean(),

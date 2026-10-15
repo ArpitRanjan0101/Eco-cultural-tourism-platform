@@ -12,6 +12,9 @@ const auditService = require('../audit/audit.service');
 const mediaService = require('../media/media.service');
 const destinationsService = require('../destinations/destinations.service');
 const partnersService = require('../partners/partners.service');
+const allocationsService = require('../bookings/allocations.service');
+const { multiply } = require('../../core/utils/money');
+const { localDateTime } = require('../../core/utils/dates');
 const repository = require('./packages.repository');
 
 const CURRENCY = 'INR';
@@ -128,21 +131,28 @@ async function getPublic(slug) {
   return toDetail(await requirePublic({ slug }));
 }
 
-async function listPublicDepartures(id) {
-  await requirePublic({ id });
-  return (await repository.listDepartures(pool, id, { from: todayLocal(), scheduledOnly: true })).map(toDeparture);
+/** Upcoming scheduled departures (after today) with seats left after held/booked allocations. */
+async function departuresWithSeats(id) {
+  const rows = (await repository.listDepartures(pool, id, { from: todayLocal(), scheduledOnly: true })).filter((row) => row.start_date > todayLocal());
+  const allocated = await allocationsService.seatsAllocated('package_departure', rows.map((row) => row.id));
+  return rows.map((row) => ({ ...toDeparture(row), seatsAvailable: Math.max(0, row.total_seats - (allocated.get(row.id) ?? 0)) }));
 }
 
-/** Seats per upcoming departure; the booking engine (Phase 5) subtracts held/booked seats under row locks. */
+async function listPublicDepartures(id) {
+  await requirePublic({ id });
+  return departuresWithSeats(id);
+}
+
+/** Seats per upcoming departure (indicative; booking re-checks under the departure lock). */
 async function availability(id, { travelers }) {
   const pkg = await requirePublic({ id });
   const withinGroupLimits = travelers >= pkg.min_travelers && travelers <= pkg.max_travelers;
-  const departures = await repository.listDepartures(pool, id, { from: todayLocal(), scheduledOnly: true });
+  const departures = await departuresWithSeats(id);
   return {
     packageId: id,
     travelers,
     withinGroupLimits,
-    departures: departures.map((row) => ({ ...toDeparture(row), seatsAvailable: row.total_seats, available: withinGroupLimits && row.total_seats >= travelers })),
+    departures: departures.map((departure) => ({ ...departure, available: withinGroupLimits && departure.seatsAvailable >= travelers })),
   };
 }
 
@@ -247,6 +257,14 @@ async function updateDeparture(ctx, id, departureId, changes) {
     const departure = await repository.findDeparture(client, departureId, { forUpdate: true });
     if (!departure || departure.partner_id !== ctx.partner.partnerId || departure.package_id !== id) throw departureNotFound();
     if (departure.start_date <= todayLocal()) throw ApiError.conflict('Departed or same-day departures cannot be changed', 'DEPARTURE_STARTED');
+    // Existing reservations are never silently altered (Report §8.2).
+    const taken = (await allocationsService.seatsAllocated('package_departure', [departureId], client)).get(departureId) ?? 0;
+    if (taken > 0 && (changes.startDate || changes.status === 'cancelled')) {
+      throw ApiError.conflict('This departure has reservations; its date and status cannot change', 'DEPARTURE_HAS_BOOKINGS');
+    }
+    if (changes.totalSeats !== undefined && changes.totalSeats < taken) {
+      throw ApiError.conflict(`Seats cannot drop below ${taken} reserved seat(s)`, 'CAPACITY_BELOW_ALLOCATED');
+    }
     const updates = { ...changes };
     if (changes.startDate) {
       if (changes.startDate <= todayLocal()) throw invalid('startDate', 'departures must start after today');
@@ -288,6 +306,54 @@ async function setStatus(ctx, id, { status, reason }) {
   return toDetail(await repository.find(pool, { id }), { admin: true });
 }
 
+// ---- Interface for the booking engine ----
+
+/** Prices and checks seats for a departure; with `lock` the departure row is locked FOR UPDATE first. */
+async function prepareBooking(db, { resourceId, travelerCount: travelers }, { lock = false } = {}) {
+  const departure = await repository.findDeparture(db, resourceId, { forUpdate: lock });
+  const pkg = departure && (await repository.find(db, { id: departure.package_id }, { publicOnly: true }));
+  if (!departure || !pkg || departure.status !== 'scheduled') throw ApiError.notFound('Departure is not available for booking', 'RESOURCE_NOT_FOUND');
+  const taken = (await allocationsService.seatsAllocated('package_departure', [departure.id], db)).get(departure.id) ?? 0;
+  const seatsAvailable = departure.total_seats - taken;
+  const withinGroupLimits = travelers >= pkg.min_travelers && travelers <= pkg.max_travelers;
+  return {
+    itemType: 'package_departure',
+    itemReferenceId: departure.id,
+    partnerId: pkg.partner_id,
+    bookingMode: pkg.booking_mode,
+    description: `${pkg.name} departing ${departure.start_date} - ${travelers} traveller(s)`,
+    quantity: travelers,
+    unitPrice: departure.price_per_person,
+    subtotal: multiply(departure.price_per_person, travelers),
+    serviceStartAt: localDateTime(departure.start_date),
+    serviceEndAt: localDateTime(addDays(departure.end_date, 1)),
+    available: withinGroupLimits && seatsAvailable >= travelers,
+    unavailableReason: !withinGroupLimits
+      ? `Group size must be ${pkg.min_travelers}-${pkg.max_travelers}`
+      : seatsAvailable < travelers
+        ? `Only ${Math.max(0, seatsAvailable)} seat(s) left`
+        : null,
+    hold: {
+      resourceType: 'package_departure',
+      resourceId: departure.id,
+      startAt: localDateTime(departure.start_date),
+      endAt: localDateTime(addDays(departure.end_date, 1)),
+      quantity: travelers,
+    },
+    cancellationPolicy: null,
+    details: {
+      packageId: pkg.id,
+      packageName: pkg.name,
+      packageSlug: pkg.slug,
+      departureId: departure.id,
+      startDate: departure.start_date,
+      endDate: departure.end_date,
+      durationDays: pkg.duration_days,
+      travelers,
+    },
+  };
+}
+
 async function search({ q, limit }) {
   const rows = await repository.search(pool, { q, limit });
   const cards = await toCards(rows);
@@ -295,6 +361,7 @@ async function search({ q, limit }) {
 }
 
 module.exports = {
+  prepareBooking,
   listPublic,
   getPublic,
   listPublicDepartures,

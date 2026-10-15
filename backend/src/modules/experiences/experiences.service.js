@@ -11,6 +11,8 @@ const auditService = require('../audit/audit.service');
 const mediaService = require('../media/media.service');
 const destinationsService = require('../destinations/destinations.service');
 const partnersService = require('../partners/partners.service');
+const allocationsService = require('../bookings/allocations.service');
+const { multiply } = require('../../core/utils/money');
 const repository = require('./experiences.repository');
 
 const CURRENCY = 'INR';
@@ -108,29 +110,28 @@ async function getPublic(slug) {
   return toDetail(await requirePublic({ slug }));
 }
 
-async function listPublicSessions(id, query) {
-  await requirePublic({ id });
-  const window = sessionWindow(query);
-  const rows = await repository.listSessions(pool, id, { ...window, scheduledOnly: true });
-  return rows.filter((row) => row.starts_at > new Date()).map(toSession);
+/** Upcoming scheduled sessions with seats left after held/booked allocations. */
+async function sessionsWithSeats(id, window) {
+  const rows = (await repository.listSessions(pool, id, { ...window, scheduledOnly: true })).filter((row) => row.starts_at > new Date());
+  const allocated = await allocationsService.seatsAllocated('experience_session', rows.map((row) => row.id));
+  return rows.map((row) => ({ ...toSession(row), seatsAvailable: Math.max(0, row.capacity - (allocated.get(row.id) ?? 0)) }));
 }
 
-/**
- * Seats per upcoming session for a party size. Seats already held/booked are
- * subtracted by the booking engine (Phase 5), which also locks the session row.
- */
+async function listPublicSessions(id, query) {
+  await requirePublic({ id });
+  return sessionsWithSeats(id, sessionWindow(query));
+}
+
+/** Seats per upcoming session for a party size (indicative; booking re-checks under the session lock). */
 async function availability(id, { from, to, participants }) {
   const experience = await requirePublic({ id });
-  const window = sessionWindow({ from, to });
-  const rows = await repository.listSessions(pool, id, { ...window, scheduledOnly: true });
   const withinGroupLimits = participants >= experience.min_participants && participants <= experience.max_participants;
+  const sessions = await sessionsWithSeats(id, sessionWindow({ from, to }));
   return {
     experienceId: id,
     participants,
     withinGroupLimits,
-    sessions: rows
-      .filter((row) => row.starts_at > new Date())
-      .map((row) => ({ ...toSession(row), seatsAvailable: row.capacity, available: withinGroupLimits && row.capacity >= participants })),
+    sessions: sessions.map((session) => ({ ...session, available: withinGroupLimits && session.seatsAvailable >= participants })),
   };
 }
 
@@ -204,17 +205,28 @@ async function updateSession(ctx, id, sessionId, changes) {
     if (changes.capacity !== undefined && changes.capacity < session.min_participants) {
       throw invalid('capacity', 'capacity cannot be below the minimum group size');
     }
+    // Reservations are protected: times and cancellation are frozen, capacity cannot drop below seats taken.
+    const taken = (await allocationsService.seatsAllocated('experience_session', [sessionId], client)).get(sessionId) ?? 0;
+    if (taken > 0 && (changes.startsAt || changes.endsAt || changes.status === 'cancelled')) {
+      throw ApiError.conflict('This session has reservations; its time and status cannot change', 'SESSION_HAS_BOOKINGS');
+    }
+    if (changes.capacity !== undefined && changes.capacity < taken) {
+      throw ApiError.conflict(`Capacity cannot drop below ${taken} reserved seat(s)`, 'CAPACITY_BELOW_ALLOCATED');
+    }
     await repository.updateSession(client, sessionId, changes);
     return { entityId: id, action: 'experiences.session_updated', newValues: { sessionId, ...changes } };
   });
   return toSession(await repository.findSession(pool, sessionId));
 }
 
-/** "Remove unused session": future sessions only (the booking engine adds the no-reservations check). */
+/** "Remove unused session": future sessions that have never been held or booked. */
 async function deleteSession(ctx, id, sessionId) {
   await auditService.auditedTransaction(ctx, 'experience', async (client) => {
     const session = await requireOwnedSession(client, ctx, id, sessionId, { forUpdate: true });
     if (session.starts_at <= new Date()) throw ApiError.conflict('Past or started sessions cannot be removed', 'SESSION_STARTED');
+    if (await allocationsService.hasActiveAllocations('experience_session', sessionId, client)) {
+      throw ApiError.conflict('This session has reservations and cannot be removed', 'SESSION_HAS_BOOKINGS');
+    }
     await repository.deleteSession(client, sessionId);
     return { entityId: id, action: 'experiences.session_deleted', oldValues: toSession(session), newValues: { deleted: true } };
   });
@@ -262,6 +274,47 @@ async function setStatus(ctx, id, { status, reason }) {
   return toDetail(row, { admin: true });
 }
 
+// ---- Interface for the booking engine ----
+
+/** Prices and checks seats for a session; with `lock` the session row is locked FOR UPDATE first. */
+async function prepareBooking(db, { resourceId, participants }, { lock = false } = {}) {
+  const session = await repository.findSession(db, resourceId, { forUpdate: lock });
+  const experience = session && (await repository.find(db, { id: session.experience_id }, { publicOnly: true }));
+  if (!session || !experience || session.status !== 'scheduled') throw ApiError.notFound('Session is not available for booking', 'RESOURCE_NOT_FOUND');
+  const taken = (await allocationsService.seatsAllocated('experience_session', [session.id], db)).get(session.id) ?? 0;
+  const seatsAvailable = session.capacity - taken;
+  const withinGroupLimits = participants >= experience.min_participants && participants <= experience.max_participants;
+  return {
+    itemType: 'experience_session',
+    itemReferenceId: session.id,
+    partnerId: experience.partner_id,
+    bookingMode: experience.booking_mode,
+    description: `${experience.name} - ${participants} participant(s)`,
+    quantity: participants,
+    unitPrice: session.price_per_person,
+    subtotal: multiply(session.price_per_person, participants),
+    serviceStartAt: session.starts_at,
+    serviceEndAt: session.ends_at,
+    available: withinGroupLimits && seatsAvailable >= participants,
+    unavailableReason: !withinGroupLimits
+      ? `Group size must be ${experience.min_participants}-${experience.max_participants}`
+      : seatsAvailable < participants
+        ? `Only ${Math.max(0, seatsAvailable)} seat(s) left`
+        : null,
+    hold: { resourceType: 'experience_session', resourceId: session.id, startAt: session.starts_at, endAt: session.ends_at, quantity: participants },
+    cancellationPolicy: null,
+    details: {
+      experienceId: experience.id,
+      experienceName: experience.name,
+      experienceSlug: experience.slug,
+      sessionId: session.id,
+      startsAt: iso(session.starts_at),
+      endsAt: iso(session.ends_at),
+      participants,
+    },
+  };
+}
+
 async function search({ q, limit }) {
   const rows = await repository.search(pool, { q, limit });
   const cards = await toCards(rows);
@@ -269,6 +322,7 @@ async function search({ q, limit }) {
 }
 
 module.exports = {
+  prepareBooking,
   listPublic,
   listForDestination,
   getPublic,

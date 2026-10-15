@@ -13,6 +13,7 @@ const propertiesRoutes = require('./properties/properties.routes');
 const guidesRoutes = require('./guides/guides.routes');
 const experiencesRoutes = require('./experiences/experiences.routes');
 const packagesRoutes = require('./packages/packages.routes');
+const bookingsRoutes = require('./bookings/bookings.routes');
 
 module.exports = [
   ...authRoutes,
@@ -27,4 +28,5 @@ module.exports = [
   ...guidesRoutes,
   ...experiencesRoutes,
   ...packagesRoutes,
+  ...bookingsRoutes,
 ];

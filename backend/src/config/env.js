@@ -70,6 +70,15 @@ const envSchema = z
     PAYMENT_API_BASE_URL: z.string().url().default('https://api.razorpay.com/v1'),
     PAYMENT_HTTP_TIMEOUT_MS: z.coerce.number().int().min(1000).max(30000).default(10000),
 
+    // Email (SMTP; Mailpit in development) and the web app used to build links in messages.
+    SMTP_HOST: z.string().min(1),
+    SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+    SMTP_SECURE: z.enum(['true', 'false']).default('false').transform((value) => value === 'true'),
+    SMTP_USER: z.string().optional().transform((value) => value || undefined),
+    SMTP_PASSWORD: z.string().optional().transform((value) => value || undefined),
+    EMAIL_FROM: z.string().min(3).default('Jharkhand Tourism <no-reply@jharkhand-tourism.local>'),
+    APP_WEB_URL: z.string().url().default('http://localhost:3000'),
+
     // Optional first super-admin created by `npm run db:seed`.
     BOOTSTRAP_ADMIN_EMAIL: z.string().trim().toLowerCase().email().optional().or(z.literal('').transform(() => undefined)),
     BOOTSTRAP_ADMIN_NAME: z.string().trim().max(150).optional(),
@@ -167,6 +176,15 @@ function parseEnv(source) {
       apiBaseUrl: env.PAYMENT_API_BASE_URL.replace(/\/+$/, ''),
       timeoutMs: env.PAYMENT_HTTP_TIMEOUT_MS,
     },
+    email: {
+      host: env.SMTP_HOST,
+      port: env.SMTP_PORT,
+      secure: env.SMTP_SECURE,
+      user: env.SMTP_USER,
+      password: env.SMTP_PASSWORD,
+      from: env.EMAIL_FROM,
+    },
+    webAppUrl: env.APP_WEB_URL.replace(/\/+$/, ''),
     bootstrapAdmin: env.BOOTSTRAP_ADMIN_EMAIL
       ? { email: env.BOOTSTRAP_ADMIN_EMAIL, password: env.BOOTSTRAP_ADMIN_PASSWORD, fullName: env.BOOTSTRAP_ADMIN_NAME || 'Platform Administrator' }
       : null,

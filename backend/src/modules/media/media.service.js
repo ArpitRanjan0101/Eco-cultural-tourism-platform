@@ -135,6 +135,50 @@ async function deleteMedia(actor, id) {
   await storage.deleteObject(location(media)).catch((err) => logger.warn({ err: { message: err.message }, mediaId: id }, 'Orphaned media object'));
 }
 
+// ---- Background processing (media-processing queue, housekeeping) ----
+
+const SHARP_FORMAT = { 'image/jpeg': 'jpeg', 'image/png': 'png', 'image/webp': 'webp' };
+
+/**
+ * Normalises a verified image: applies EXIF orientation, strips all metadata (camera
+ * GPS location etc. must not be republished) and records width/height. Idempotent.
+ */
+async function processUploaded(mediaId) {
+  const media = await mediaRepository.findById(pool, mediaId);
+  if (!media || media.status !== 'ready' || !SHARP_FORMAT[media.mime_type] || media.width) return { skipped: true };
+  const sharp = require('sharp');
+  const original = await storage.getObject(location(media));
+  const format = SHARP_FORMAT[media.mime_type];
+  const { data, info } = await sharp(original, { failOn: 'error' })
+    .rotate()
+    .toFormat(format, format === 'jpeg' ? { quality: 85, mozjpeg: true } : {})
+    .toBuffer({ resolveWithObject: true });
+  await storage.putObject({ ...location(media), body: data, contentType: media.mime_type });
+  await mediaRepository.updateProcessed(pool, mediaId, { width: info.width, height: info.height, fileSize: data.length });
+  return { width: info.width, height: info.height, bytes: data.length };
+}
+
+/** Stores a platform-generated private file (e.g. a booking voucher) owned by `ownerUserId`. */
+async function storeGeneratedDocument({ ownerUserId, purpose, mimeType, buffer }) {
+  const rule = policy.PURPOSES[purpose];
+  if (!rule?.generatedOnly || !rule.mimeTypes.includes(mimeType) || buffer.length > rule.maxBytes) throw new Error(`Invalid generated document for ${purpose}`);
+  const id = randomUUID();
+  const now = new Date();
+  const storageKey = `${purpose}/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}/${id}.${policy.EXTENSIONS[mimeType]}`;
+  await storage.putObject({ visibility: rule.visibility, key: storageKey, body: buffer, contentType: mimeType });
+  return mediaRepository.insertReady(pool, { id, uploadedBy: ownerUserId, purpose, storageKey, mimeType, fileSize: buffer.length, visibility: rule.visibility });
+}
+
+/** Deletes abandoned/rejected uploads older than `olderThanHours` (rows are unreferenced by construction). */
+async function purgeStaleUploads({ olderThanHours = 24, limit = 100 } = {}) {
+  const stale = await mediaRepository.listStalePending(pool, olderThanHours, limit);
+  for (const media of stale) {
+    await storage.deleteObject(location(media)).catch(() => {});
+    await mediaRepository.deleteById(pool, media.id);
+  }
+  return stale.length;
+}
+
 // ---- Interfaces for other modules ----
 
 /**
@@ -198,6 +242,9 @@ module.exports = {
   completeUpload,
   getMedia,
   deleteMedia,
+  processUploaded,
+  storeGeneratedDocument,
+  purgeStaleUploads,
   assertAttachable,
   getForAuthorizedReview,
   buildGalleries,

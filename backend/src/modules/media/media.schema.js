@@ -1,7 +1,7 @@
 'use strict';
 
 const { z } = require('../../core/validation/zod');
-const { PURPOSES } = require('./media.policy');
+const { PURPOSES, UPLOADABLE_PURPOSES } = require('./media.policy');
 
 const purposes = Object.keys(PURPOSES);
 
@@ -23,7 +23,7 @@ const mediaSchema = z
 
 const uploadInitBody = z
   .object({
-    purpose: z.enum(purposes),
+    purpose: z.enum(UPLOADABLE_PURPOSES),
     mimeType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'application/pdf']),
     fileSize: z.number().int().positive().max(25 * 1024 * 1024),
     altText: z.string().trim().min(1).max(300).optional(),

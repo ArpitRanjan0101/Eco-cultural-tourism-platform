@@ -7,6 +7,11 @@ const { getRedis } = require('../../config/redis');
 const { Migrator } = require('../../database/migrator');
 const { countLiveWorkers } = require('../../jobs/heartbeat');
 const storage = require('../../config/storage');
+const { createRedisConnection } = require('../../config/redis');
+const { queueCounts, closeMonitorQueues } = require('../../jobs/queues');
+
+let monitorConnection;
+const getMonitorConnection = () => (monitorConnection ??= createRedisConnection({ maxRetriesPerRequest: null }));
 
 const CHECK_TIMEOUT_MS = 2_000;
 
@@ -33,7 +38,7 @@ async function checkReadiness() {
   const redis = getRedis();
   const migrator = new Migrator({ db: pool });
 
-  const [database, cache, migrations, worker, objectStorage] = await Promise.all([
+  const [database, cache, migrations, worker, objectStorage, jobs] = await Promise.all([
     runCheck(async () => {
       await pool.query('SELECT 1');
     }),
@@ -53,12 +58,24 @@ async function checkReadiness() {
     runCheck(async () => {
       await storage.checkBuckets();
     }),
+    // Backlog and dead-letter visibility: failed jobs and undispatchable outbox events.
+    runCheck(async () => {
+      const [{ rows }, queues] = await Promise.all([
+        pool.query("SELECT count(*) FILTER (WHERE status = 'pending')::int AS pending, count(*) FILTER (WHERE status = 'failed')::int AS failed FROM outbox_events"),
+        queueCounts(getMonitorConnection()),
+      ]);
+      const failedJobs = Object.values(queues).reduce((total, counts) => total + counts.failed, 0);
+      if (rows[0].failed > 0 || failedJobs > 0) {
+        throw Object.assign(new Error('failures'), { reason: `${rows[0].failed} failed outbox event(s), ${failedJobs} failed job(s)` });
+      }
+      return { outboxPending: rows[0].pending, queues };
+    }),
   ]);
 
-  // Worker and object storage are reported but do not gate API readiness: browsing,
+  // Worker, object storage and jobs are reported but do not gate API readiness: browsing,
   // auth and bookings keep working while jobs queue up or uploads are unavailable.
   const ready = [database, cache, migrations].every((check) => check.status === 'up');
-  return { ready, checks: { database, redis: cache, migrations, worker, storage: objectStorage } };
+  return { ready, checks: { database, redis: cache, migrations, worker, storage: objectStorage, jobs } };
 }
 
 function getVersion() {
@@ -72,4 +89,10 @@ function getVersion() {
   };
 }
 
-module.exports = { checkReadiness, getVersion };
+async function closeHealthMonitor() {
+  await closeMonitorQueues();
+  if (monitorConnection) await monitorConnection.quit().catch(() => monitorConnection.disconnect());
+  monitorConnection = undefined;
+}
+
+module.exports = { checkReadiness, getVersion, closeHealthMonitor };

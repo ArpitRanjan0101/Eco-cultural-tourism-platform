@@ -14,8 +14,8 @@ design: [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) · decision
 | 3 | Geography, destinations, CMS, media, search | ✅ Verified (2026-10-15) |
 | 4 | Partners, hotels, inventory, guides, experiences, packages | ✅ Verified (2026-10-15) |
 | 5 | Booking engine, concurrency, reservation lifecycle | ✅ Verified (2026-10-15) |
-| 6 | Payments, webhooks, cancellations, refunds, reconciliation | ✅ Verified (2026-10-15) — awaiting approval for Phase 7 |
-| 7 | BullMQ, outbox, notifications | ⏳ |
+| 6 | Payments, webhooks, cancellations, refunds, reconciliation | ✅ Verified (2026-10-15) |
+| 7 | BullMQ, outbox, notifications | ✅ Verified (2026-10-15) — awaiting approval for Phase 8 |
 | 8 | Trips, favorites, reviews | ⏳ |
 | 9 | Admin, analytics, audit, settings | ⏳ |
 | 10 | Integration/security testing, API docs, production deployment | ⏳ |
@@ -203,17 +203,40 @@ design: [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) · decision
 - To exercise real Razorpay test mode: set `PAYMENT_KEY_ID/SECRET` (rzp_test_…) and `PAYMENT_WEBHOOK_SECRET`, expose
   the public edge, and register `<PUBLIC_BASE_URL>/api/v1/webhooks/payments/razorpay` in the Razorpay dashboard.
 
+## Phase 7 — delivered
+
+- **Migration:** `0014_notifications_outbox` — notification_templates (25 seeded), notifications, notification_deliveries;
+  outbox retry columns; `booking_document` media purpose.
+- **Jobs:** `jobs/queues.js` (8 queues, retry/backoff/retention), `jobs/dispatcher.js` (outbox → queues, token scrub),
+  `jobs/runtime.js` (workers + job schedulers), `worker.js` now BullMQ-only. Processors: outbox dispatch, booking sweep,
+  vouchers, payment reconciliation, cancellation refunds + refund sweep, notify/send-email, image processing, housekeeping.
+- **Modules:** `notifications` (event fan-out, SMTP sending, inbox, admin templates), media processing/generated documents/
+  stale-upload purge, voucher PDFs, payments split into `refundCancellation`/`sweepRefunds`/`reconcile`, retention purges.
+- **Infra/config:** Mailpit service, `SMTP_*`, `EMAIL_FROM`, `APP_WEB_URL`; readiness `jobs` check. Decisions G1–G10.
+
+### Phase 7 verification (executed 2026-10-15)
+
+- `db:migrate` applied 0014 ✅ · 205 routes ✅ · lint 0 ✅
+- `npm test` → **129 tests, 129 pass, 0 fail**, two consecutive runs — adds (real BullMQ runtime + Mailpit + fake Razorpay):
+  verification email delivered once with a working link, token scrubbed from the stored event, re-dispatch does not email
+  twice; dispatch failure → pending with backoff; confirmation → one voucher PDF (downloadable, idempotent) + guest and
+  partner notifications + email; paid cancellation refunded via refund-processing queue + refund notification;
+  request-to-book emails partner members; inbox list/unread/mark read/read-all with owner scoping; template edit changes
+  the subject, inactive template suppresses email, audited; uploaded image dimensions recorded and metadata stripped;
+  stale uploads purged ✅
+- Dev stack: worker starts 8 queues with schedules; register via nginx → email in Mailpit within seconds; readiness
+  `jobs: up, outboxPending: 0` ✅
+- Restart resilience: worker stopped → registration event stays pending (readiness shows backlog 1) → worker started →
+  email delivered ✅
+- Test infra: test reset restores migration-seeded templates (TRUNCATE users CASCADE empties them via `updated_by`).
+
 ## Pending / carried forward
 
 - Phase 10: separate migration-owner and least-privilege runtime DB roles (C17); production compose (no private port publish,
   TLS, resource limits, log rotation, secrets); backups/restore drill; Swagger UI hosting.
 - Open owner decisions O1–O7 in DECISIONS.md (O1 gateway blocks Phase 6).
 - Production payment launch still gated by O2 (merchant of record, GST, settlement/payouts — Report §13 Critical).
-- Phase 7: move the 30 s booking sweep onto the BullMQ `booking-expiration` queue; idempotency/auth-attempt retention cleanup.
-- Phase 7: media-processing job (dimensions, resizing) on `media.uploaded`; cleanup of stale `pending` uploads.
 - Phase 8: `/destinations/:slug/reviews`.
-- Phase 7: email delivery for `auth.*` outbox events; scrub `payload.token` after dispatch; retention cleanup job for
-  `auth_login_attempts`, expired refresh/verification tokens.
 - Phase 9: `GET /admin/audit-logs` search over the existing `audit_logs`.
 
 ## Commands (host needs Docker only)

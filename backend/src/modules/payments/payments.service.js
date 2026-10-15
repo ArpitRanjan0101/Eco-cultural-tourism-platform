@@ -461,32 +461,53 @@ async function adminRefunds(query) {
 
 // ---- Maintenance (worker): cancellations -> refunds, retries, reconciliation, webhook retries ----
 
-async function runMaintenance({ batchSize = 50 } = {}) {
-  const stats = { cancellationRefunds: 0, refundsProcessed: 0, ordersReconciled: 0, eventsRetried: 0 };
-  if (!config.payments.keyId || !config.payments.keySecret) return stats;
+const paymentsConfigured = () => Boolean(config.payments.keyId && config.payments.keySecret);
 
-  for (const cancellation of await bookingsService.listCancellationsAwaitingRefund(batchSize)) {
-    const refundId = await withTransaction(async (client) => {
-      const [tx] = await repository.capturedForBooking(client, cancellation.bookingId);
-      if (!tx) return null;
-      return requestRefund(client, {
-        bookingId: cancellation.bookingId,
-        transactionId: tx.id,
-        amountMinor: toMinor(cancellation.refundAmount),
-        kind: 'cancellation',
-        reason: cancellation.reason ?? 'Booking cancelled',
-      });
+/** Creates the refund owed by a paid cancellation (idempotent per booking). Returns the refund id or null. */
+async function createCancellationRefund({ bookingId, refundAmount, reason }) {
+  return withTransaction(async (client) => {
+    const cancellation = await bookingsService.getCancellation(client, bookingId);
+    if (!cancellation || cancellation.status !== 'refund_pending') return null;
+    const [tx] = await repository.capturedForBooking(client, bookingId);
+    if (!tx) return null;
+    return requestRefund(client, {
+      bookingId,
+      transactionId: tx.id,
+      amountMinor: toMinor(refundAmount ?? cancellation.refund_amount),
+      kind: 'cancellation',
+      reason: reason ?? 'Booking cancelled',
     });
-    if (refundId) stats.cancellationRefunds += 1;
-  }
+  });
+}
 
+/** refund-processing job for a `booking.cancelled` event: create and submit the refund now. */
+async function refundCancellation(bookingId) {
+  if (!paymentsConfigured()) return { skipped: 'not_configured' };
+  const refundId = await createCancellationRefund({ bookingId });
+  if (refundId) await processRefund(refundId);
+  return { refundId };
+}
+
+/** Sweep: cancellations still awaiting a refund (e.g. events lost before dispatch) and refund retries. */
+async function sweepRefunds({ batchSize = 50 } = {}) {
+  const stats = { cancellationRefunds: 0, refundsProcessed: 0 };
+  if (!paymentsConfigured()) return stats;
+  for (const cancellation of await bookingsService.listCancellationsAwaitingRefund(batchSize)) {
+    if (await createCancellationRefund(cancellation)) stats.cancellationRefunds += 1;
+  }
   for (const refundId of await repository.listRefundsToProcess(pool, batchSize)) {
     const refund = await repository.findRefund(pool, refundId);
     if (refund.status === 'failed' && refund.attempts >= MAX_AUTOMATIC_REFUND_ATTEMPTS) continue;
     await processRefund(refundId);
     stats.refundsProcessed += 1;
   }
+  return stats;
+}
 
+/** payment-reconciliation job: re-check unpaid orders with the provider and retry failed webhook events. */
+async function reconcile({ batchSize = 50 } = {}) {
+  const stats = { ordersReconciled: 0, eventsRetried: 0 };
+  if (!paymentsConfigured()) return stats;
   for (const order of await repository.listOrdersToReconcile(pool, batchSize)) {
     try {
       const payments = await provider.listOrderPayments(order.provider_order_id);
@@ -511,6 +532,11 @@ async function runMaintenance({ batchSize = 50 } = {}) {
   return stats;
 }
 
+/** All payment maintenance in one call (tests and manual runs). */
+async function runMaintenance(options) {
+  return { ...(await sweepRefunds(options)), ...(await reconcile(options)) };
+}
+
 module.exports = {
   createPaymentOrder,
   getOrder,
@@ -524,5 +550,8 @@ module.exports = {
   retryRefund,
   adminPayments,
   adminRefunds,
+  refundCancellation,
+  sweepRefunds,
+  reconcile,
   runMaintenance,
 };

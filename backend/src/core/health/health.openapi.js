@@ -44,6 +44,7 @@ function register(registry) {
                   migrations: checkSchema,
                   worker: checkSchema,
                   storage: checkSchema,
+                  jobs: checkSchema.extend({ outboxPending: z.number().int().optional(), queues: z.record(z.record(z.number())).optional() }),
                 }),
               }),
             ),

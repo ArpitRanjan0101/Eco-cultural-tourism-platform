@@ -81,9 +81,9 @@ Phase = phase of the agreed working method in which the item is delivered.
 - [x] cms_redirects · [x] cms_announcements
 
 ### 4.13 Notifications, audit, operations (7)
-- [ ] notification_templates (7) · [ ] notifications (7) · [ ] notification_deliveries (7)
+- [x] notification_templates (7) · [x] notifications (7) · [x] notification_deliveries (7)
 - [x] platform_settings (5; admin routes in 9) · [x] audit_logs (2)
-- [~] outbox_events (2: table + writer; dispatch in 7) · [x] idempotency_records (5)
+- [x] outbox_events (2/7) · [x] idempotency_records (5)
 
 Infrastructure-only table outside the 78: `schema_migrations` (migration bookkeeping, Phase 1).
 
@@ -224,7 +224,7 @@ GET|POST /admin/cms/announcements  PATCH|DELETE /admin/cms/announcements/:id
 POST /media/upload-init  POST /media/upload-complete  GET|DELETE /media/:id
 ```
 
-### 5.14 Notifications (6) — Phase 7
+### 5.14 Notifications (6) — Phase 7 — [x] all 6
 ```
 GET /notifications  GET /notifications/unread-count  PATCH /notifications/:id/read
 POST /notifications/read-all  GET /admin/notification-templates  PATCH /admin/notification-templates/:id
@@ -240,8 +240,8 @@ GET|PATCH /admin/settings  GET /admin/audit-logs
 ```
 
 ## 4. Background queues (7) — Section 9
-- [ ] booking-expiration (5) · [ ] booking-confirmation (7) · [ ] payment-reconciliation (6)
-- [ ] refund-processing (6) · [ ] notification-delivery (7) · [ ] media-processing (3/7) · [ ] outbox-dispatch (7)
+- [x] booking-expiration (5/7) · [x] booking-confirmation (7) · [x] payment-reconciliation (6/7)
+- [x] refund-processing (6/7) · [x] notification-delivery (7) · [x] media-processing (7) · [x] outbox-dispatch (7) · [x] housekeeping (7, addition)
 
 ## 5. Critical end-to-end scenarios (Section 11.1)
 - [x] Register → verify → login → refresh → logout; revoked refresh cannot be reused (2)
@@ -253,5 +253,5 @@ GET|PATCH /admin/settings  GET /admin/audit-logs
 - [x] Refund failure/retry/duplicate callback → single refund (6)
 - [x] Partner cannot alter another partner's inventory or booking financials (4/5: no partner route mutates amounts)
 - [x] CMS draft hidden; published section serialised safely (3)
-- [ ] Worker/API restart does not lose outbox events (7)
+- [x] Worker/API restart does not lose outbox events (7: verified by stopping the worker; plus dispatch-failure backoff test)
 - [ ] Backup restore keeps transactional records + media references (10)

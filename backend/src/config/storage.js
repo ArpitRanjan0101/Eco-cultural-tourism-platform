@@ -60,6 +60,19 @@ async function readPrefix({ visibility, key }, bytes = 16) {
   return Buffer.from(await result.Body.transformToByteArray());
 }
 
+/** Whole object (server-side processing of uploads up to the purpose size limits). */
+async function getObject({ visibility, key }) {
+  const result = await internalClient.send(new GetObjectCommand({ Bucket: bucketFor(visibility), Key: key }));
+  return Buffer.from(await result.Body.transformToByteArray());
+}
+
+/** Server-side write (processed images, generated vouchers). */
+async function putObject({ visibility, key, body, contentType }) {
+  await internalClient.send(
+    new PutObjectCommand({ Bucket: bucketFor(visibility), Key: key, Body: body, ContentType: contentType, ContentLength: body.length }),
+  );
+}
+
 async function deleteObject({ visibility, key }) {
   await internalClient.send(new DeleteObjectCommand({ Bucket: bucketFor(visibility), Key: key }));
 }
@@ -86,4 +99,15 @@ async function ensureBuckets() {
   return created;
 }
 
-module.exports = { presignUpload, presignDownload, headObject, readPrefix, deleteObject, publicUrl, checkBuckets, ensureBuckets };
+module.exports = {
+  presignUpload,
+  presignDownload,
+  headObject,
+  readPrefix,
+  getObject,
+  putObject,
+  deleteObject,
+  publicUrl,
+  checkBuckets,
+  ensureBuckets,
+};

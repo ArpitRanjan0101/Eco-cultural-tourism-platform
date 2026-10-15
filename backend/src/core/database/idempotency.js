@@ -61,4 +61,9 @@ async function runOnce(client, { scope, key, body, ttlHours = DEFAULT_TTL_HOURS 
   return { replayed: false, status, body: responseBody };
 }
 
-module.exports = { runOnce, requireKey, hashRequest };
+async function purgeExpired(db) {
+  const { rowCount } = await db.query('DELETE FROM idempotency_records WHERE expires_at < now()');
+  return rowCount;
+}
+
+module.exports = { runOnce, requireKey, hashRequest, purgeExpired };

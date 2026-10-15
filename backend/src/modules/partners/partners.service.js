@@ -298,6 +298,16 @@ async function adminDocuments(id) {
 
 // ---- Interfaces for supply modules ----
 
+/** Contacts of an organisation's members with the given roles (notification recipients). */
+async function memberContacts(partnerId, roles = ['owner', 'manager'], db = pool) {
+  const [partner] = await repository.findPartnersByIds(db, [partnerId]);
+  const members = (await repository.listMembers(db, partnerId)).filter((member) => roles.includes(member.role));
+  return {
+    businessName: partner?.business_name ?? null,
+    members: members.map((member) => ({ userId: member.user_id, email: member.email, fullName: member.full_name })),
+  };
+}
+
 async function isMember(partnerId, userId, db = pool) {
   return Boolean(await repository.findMember(db, partnerId, userId));
 }
@@ -326,5 +336,6 @@ module.exports = {
   setStatus,
   adminDocuments,
   isMember,
+  memberContacts,
   getPartnerRefMap,
 };

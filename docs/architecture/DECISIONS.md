@@ -121,6 +121,21 @@ O1 (Razorpay), O3 (booking mode), O4 (timings) and O5 (partner types → supply)
 | F9 | `payment_orders.reconciled_at`, `payment_transactions.provider/method`, `payment_webhook_events.event_type/attempts/last_error` and `refunds.attempts/last_error/requested_by/updated_at` are additions to the report's field lists. |
 | F10 | Tests run the real adapter against an in-process fake Razorpay HTTP server (`tests/fakeRazorpay.js`); no keys or network needed. |
 
+## Phase 7 decisions (queues, outbox, notifications)
+
+| ID | Decision |
+|----|----------|
+| G1 | BullMQ 5.34 on Redis runs the Report §9 queues (outbox-dispatch, booking-expiration, booking-confirmation, payment-reconciliation, refund-processing, notification-delivery, media-processing) plus `housekeeping` (retention clean-up). Only the worker uses BullMQ; the API writes outbox rows only. Defaults: 5 attempts, exponential backoff from 2 s, completed jobs kept 1 h, failed jobs kept 7 days (dead-letter visibility). |
+| G2 | Schedules via BullMQ job schedulers (one firing per interval across all worker replicas): outbox dispatch 2 s, booking sweep 30 s, payment reconciliation 60 s, refund sweep 60 s, housekeeping hourly. The Phase 5/6 `setInterval` sweeps were removed. |
+| G3 | Outbox dispatch claims pending rows with `FOR UPDATE SKIP LOCKED`, enqueues jobs with ids derived from the event id (BullMQ de-duplicates), then marks the row processed in the same transaction. Enqueue failures leave the row pending with exponential backoff (max 10 attempts → `failed`). Columns `attempts`, `last_error`, `available_at` added to `outbox_events`. One-time tokens are removed from stored payloads once dispatched (A9); they travel only inside the queue job. |
+| G4 | Notifications: events map to templates per channel (`in_app`, `email`); each message is idempotent via a `dedupe_key` (event, template, channel, recipient) on `notifications`/`notification_deliveries` (additions). Email bodies are never stored (they can contain one-time links); deliveries record status, attempts, provider message id, last error. Final failures mark the delivery `failed`. |
+| G5 | Templates are plain text with `{{placeholders}}`; values and text are HTML-escaped when rendered to email (links become anchors). 25 default templates are seeded by migration 0014; admins edit subject/body/status (audited); inactive templates are skipped. |
+| G6 | SMTP via nodemailer (`SMTP_*`, `EMAIL_FROM`); Mailpit (`axllent/mailpit:v1.21.8`) in development with its UI on `127.0.0.1:8025`. `APP_WEB_URL` builds links in messages. |
+| G7 | Paid cancellations are refunded event-driven (`booking.cancelled` → refund-processing job); the 60 s refund sweep remains the safety net. |
+| G8 | Vouchers: `booking.confirmed` → PDF (pdfkit, built-in fonts) stored as a private `booking_document` media asset (new purpose, never user-uploadable) and linked in `booking_documents`; generation is idempotent under the booking row lock. |
+| G9 | Media processing (sharp 0.33): uploaded images get EXIF orientation applied, all metadata stripped (no GPS leakage) and width/height recorded; housekeeping deletes uploads left pending/rejected for 24 h. |
+| G10 | Retention (housekeeping): login attempts 90 days, refresh tokens 30 days after expiry, verification tokens 7 days, expired idempotency records, processed outbox rows after 30 days. Readiness reports outbox backlog and per-queue counts, flagging failed jobs/events (non-gating). |
+
 ## Technology choices (pinned in package.json / compose)
 
 - Node 22 LTS (`node:22.12.0-bookworm-slim`), Express 5 (native async error propagation).

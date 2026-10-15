@@ -5,50 +5,31 @@ const config = require('../config');
 const logger = require('../core/logging/logger');
 const { pool } = require('../config/database');
 const { createRedisConnection } = require('../config/redis');
+const { closeMailer } = require('../config/mailer');
 const { recordHeartbeat, removeHeartbeat, HEARTBEAT_INTERVAL_MS } = require('./heartbeat');
-const bookingsService = require('../modules/bookings/bookings.service');
-const paymentsService = require('../modules/payments/payments.service');
-
-// Lapsed holds stop counting immediately (capacity checks compare expires_at); this sweep
-// moves the bookings themselves to expired/completed and emits their outbox events.
-const BOOKING_MAINTENANCE_INTERVAL_MS = 30_000;
+const { startJobRuntime } = require('./runtime');
 
 /**
- * Background worker process (separate container, same image as the API).
- * Phase 5: booking expiry/completion sweep. Phase 7 moves scheduled work onto BullMQ
- * queues (booking-expiration, outbox-dispatch, notifications, media, payments).
+ * Background worker process (separate container, same image as the API): BullMQ
+ * workers for all Report §9 queues, repeatable schedules and a liveness heartbeat.
+ * Several worker containers can run side by side.
  */
 async function main() {
   const workerId = `${os.hostname()}:${process.pid}`;
-  const redis = createRedisConnection();
+  // BullMQ requires maxRetriesPerRequest: null for its blocking connections.
+  const connection = createRedisConnection({ maxRetriesPerRequest: null });
+  const heartbeatRedis = createRedisConnection();
 
   await pool.query('SELECT 1');
-  await redis.ping();
+  await heartbeatRedis.ping();
 
   const beat = () =>
-    recordHeartbeat(redis, workerId).catch((err) => logger.warn({ err: { message: err.message } }, 'Heartbeat failed'));
+    recordHeartbeat(heartbeatRedis, workerId).catch((err) => logger.warn({ err: { message: err.message } }, 'Heartbeat failed'));
   await beat();
   const heartbeatTimer = setInterval(beat, HEARTBEAT_INTERVAL_MS);
 
-  let sweeping = false;
-  const sweep = async () => {
-    if (sweeping) return;
-    sweeping = true;
-    try {
-      const result = await bookingsService.runMaintenance();
-      if (result.expired || result.completed) logger.info(result, 'Booking maintenance');
-      const payments = await paymentsService.runMaintenance();
-      if (Object.values(payments).some(Boolean)) logger.info(payments, 'Payment maintenance');
-    } catch (err) {
-      logger.error({ err }, 'Booking maintenance failed');
-    } finally {
-      sweeping = false;
-    }
-  };
-  await sweep();
-  const sweepTimer = setInterval(sweep, BOOKING_MAINTENANCE_INTERVAL_MS);
-
-  logger.info({ workerId, env: config.env }, 'Worker started');
+  const runtime = await startJobRuntime({ connection });
+  logger.info({ workerId, env: config.env, queues: Object.keys(runtime.queues) }, 'Worker started');
 
   let stopping = false;
   const shutdown = async (signal) => {
@@ -56,9 +37,11 @@ async function main() {
     stopping = true;
     logger.info({ signal }, 'Worker shutting down');
     clearInterval(heartbeatTimer);
-    clearInterval(sweepTimer);
-    await removeHeartbeat(redis, workerId).catch(() => {});
-    await Promise.allSettled([redis.quit(), pool.end()]);
+    // Let in-flight jobs finish; unfinished ones are retried by BullMQ after restart.
+    await runtime.close();
+    await removeHeartbeat(heartbeatRedis, workerId).catch(() => {});
+    closeMailer();
+    await Promise.allSettled([connection.quit(), heartbeatRedis.quit(), pool.end()]);
     process.exit(0);
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));

@@ -42,6 +42,13 @@ x-backend-env: &backend-env
   PAYMENT_KEY_SECRET: ${PAYMENT_KEY_SECRET:-}
   PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-}
   PAYMENT_API_BASE_URL: ${PAYMENT_API_BASE_URL:-https://api.razorpay.com/v1}
+  SMTP_HOST: ${SMTP_HOST:-mailpit}
+  SMTP_PORT: ${SMTP_PORT:-1025}
+  SMTP_SECURE: ${SMTP_SECURE:-false}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  EMAIL_FROM: ${EMAIL_FROM:-Jharkhand Tourism <no-reply@jharkhand-tourism.local>}
+  APP_WEB_URL: ${APP_WEB_URL:-http://localhost:3000}
   BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
   BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-}
   BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
@@ -56,6 +63,7 @@ services:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       storage: { condition: service_healthy }
+      mailpit: { condition: service_started }
     networks: [internal, edge]
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -75,6 +83,7 @@ services:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
       storage: { condition: service_healthy }
+      mailpit: { condition: service_started }
     networks: [internal, edge]
     restart: unless-stopped
 
@@ -133,6 +142,18 @@ services:
     networks:
       internal:
         aliases: [storage]
+      edge:
+    restart: unless-stopped
+
+  # Development mail catcher: SMTP on mailpit:1025, web UI on http://localhost:8025 (localhost only).
+  # Production points SMTP_* at a real provider and does not run this service.
+  mailpit:
+    image: axllent/mailpit:v1.21.8
+    ports:
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+    networks:
+      internal:
+        aliases: [mailpit]
       edge:
     restart: unless-stopped
 

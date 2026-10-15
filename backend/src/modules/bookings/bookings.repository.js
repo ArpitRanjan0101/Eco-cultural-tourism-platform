@@ -128,6 +128,18 @@ async function insertCancellation(db, { bookingId, reason, cancellationFee, refu
   );
 }
 
+async function hasDocument(db, bookingId, documentType) {
+  const { rows } = await db.query('SELECT EXISTS (SELECT 1 FROM booking_documents WHERE booking_id = $1 AND document_type = $2) AS present', [
+    bookingId,
+    documentType,
+  ]);
+  return rows[0].present;
+}
+
+async function insertDocument(db, { bookingId, mediaId, documentType }) {
+  await db.query('INSERT INTO booking_documents (booking_id, media_id, document_type) VALUES ($1, $2, $3)', [bookingId, mediaId, documentType]);
+}
+
 async function setCancellationStatus(db, bookingId, status) {
   await db.query('UPDATE booking_cancellations SET status = $2 WHERE booking_id = $1', [bookingId, status]);
 }
@@ -176,6 +188,8 @@ module.exports = {
   detailParts,
   list,
   insertCancellation,
+  hasDocument,
+  insertDocument,
   setCancellationStatus,
   findCancellation,
   listRefundPendingCancellations,

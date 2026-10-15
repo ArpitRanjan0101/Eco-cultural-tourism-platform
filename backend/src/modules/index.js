@@ -15,6 +15,7 @@ const experiencesRoutes = require('./experiences/experiences.routes');
 const packagesRoutes = require('./packages/packages.routes');
 const bookingsRoutes = require('./bookings/bookings.routes');
 const paymentsRoutes = require('./payments/payments.routes');
+const notificationsRoutes = require('./notifications/notifications.routes');
 
 module.exports = [
   ...authRoutes,
@@ -31,4 +32,5 @@ module.exports = [
   ...packagesRoutes,
   ...bookingsRoutes,
   ...paymentsRoutes,
+  ...notificationsRoutes,
 ];

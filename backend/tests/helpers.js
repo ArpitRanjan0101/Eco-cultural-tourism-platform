@@ -21,6 +21,22 @@ async function resetData() {
   await pool.query(`TRUNCATE users, auth_login_attempts, outbox_events, regions, destination_categories,
                     cms_pages, cms_menus, cms_redirects, cms_announcements, partners, amenities, guide_languages CASCADE`);
   await getRedis().flushdb(); // test Redis database only (REDIS_URL=…/1)
+  // TRUNCATE users CASCADE also empties notification_templates (updated_by FK); restore the migration's rows.
+  if ((await pool.query('SELECT count(*)::int AS n FROM notification_templates')).rows[0].n === 0) {
+    await pool.query(defaultTemplatesSql());
+  }
+}
+
+let templatesSql;
+function defaultTemplatesSql() {
+  if (!templatesSql) {
+    const migration = require('node:fs').readFileSync(
+      require('node:path').join(__dirname, '../src/database/migrations/0014_notifications_outbox.up.sql'),
+      'utf8',
+    );
+    templatesSql = migration.slice(migration.indexOf('INSERT INTO notification_templates'));
+  }
+  return templatesSql;
 }
 
 /** Loads the real Jharkhand regions/districts/categories seeds. */
@@ -77,6 +93,10 @@ async function withoutPermissions(roleCode, codes, fn) {
 }
 
 async function closeConnections() {
+  const { closeHealthMonitor } = require('../src/core/health/health.service');
+  const { closeMailer } = require('../src/config/mailer');
+  closeMailer();
+  await closeHealthMonitor();
   await Promise.allSettled([pool.end(), closeRedis()]);
 }
 

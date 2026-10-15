@@ -16,6 +16,7 @@ const guidesService = require('../guides/guides.service');
 const experiencesService = require('../experiences/experiences.service');
 const packagesService = require('../packages/packages.service');
 const allocations = require('./allocations.repository');
+const { renderVoucher } = require('./voucher');
 const repository = require('./bookings.repository');
 
 const CURRENCY = 'INR';
@@ -511,6 +512,23 @@ async function getCancellation(db, bookingId) {
   return repository.findCancellation(db, bookingId);
 }
 
+/**
+ * booking-confirmation job: generates the voucher PDF once per confirmed booking. The
+ * booking row lock serialises concurrent jobs, so a voucher is never created twice.
+ */
+async function generateVoucher(bookingId) {
+  return withTransaction(async (client) => {
+    const booking = await repository.find(client, bookingId, { forUpdate: true });
+    if (!booking || !['confirmed', 'completed'].includes(booking.booking_status)) return { skipped: 'not_confirmed' };
+    if (await repository.hasDocument(client, bookingId, 'voucher')) return { skipped: 'exists' };
+    const { travelers } = await repository.detailParts(client, bookingId);
+    const pdf = await renderVoucher({ booking, travelers });
+    const mediaId = await mediaService.storeGeneratedDocument({ ownerUserId: booking.user_id, purpose: 'booking_document', mimeType: 'application/pdf', buffer: pdf });
+    await repository.insertDocument(client, { bookingId, mediaId, documentType: 'voucher' });
+    return { mediaId };
+  });
+}
+
 /** Expires lapsed requests/holds and completes finished stays. Safe to run concurrently. */
 async function runMaintenance({ batchSize = 100 } = {}) {
   const expired = await withTransaction(async (client) => {
@@ -558,6 +576,7 @@ module.exports = {
   applyRefundOutcome,
   listCancellationsAwaitingRefund,
   getCancellation,
+  generateVoucher,
   runMaintenance,
   computeRefund,
 };

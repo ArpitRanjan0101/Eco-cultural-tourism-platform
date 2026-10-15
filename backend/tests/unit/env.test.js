@@ -20,6 +20,7 @@ const base = {
   STORAGE_PUBLIC_BUCKET: 'tourism-public',
   STORAGE_PRIVATE_BUCKET: 'tourism-private',
   STORAGE_PUBLIC_BASE_URL: 'http://localhost:8333/tourism-public/',
+  SMTP_HOST: 'mailpit',
 };
 
 describe('parseEnv', () => {

@@ -5,6 +5,7 @@ const logger = require('./core/logging/logger');
 const { createApp } = require('./app');
 const { pool } = require('./config/database');
 const { closeRedis } = require('./config/redis');
+const { closeHealthMonitor } = require('./core/health/health.service');
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -28,7 +29,7 @@ function shutdown(signal, exitCode = 0) {
   }, SHUTDOWN_TIMEOUT_MS).unref();
 
   server.close(async (err) => {
-    await Promise.allSettled([pool.end(), closeRedis()]);
+    await Promise.allSettled([pool.end(), closeRedis(), closeHealthMonitor()]);
     process.exit(err ? 1 : exitCode);
   });
 }

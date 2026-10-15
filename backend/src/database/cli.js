@@ -1,12 +1,19 @@
 'use strict';
 
+const config = require('../config');
 const { pool } = require('../config/database');
 const { Migrator } = require('./migrator');
 const { runSeeds } = require('./seeder');
+const { syncRuntimeRole } = require('./roles');
 
 const print = (line) => process.stdout.write(`${line}\n`);
 
-const USAGE = 'Usage: node src/database/cli.js <migrate | rollback [steps|all] | status | seed>';
+const USAGE = 'Usage: node src/database/cli.js <migrate | rollback [steps|all] | status | seed | roles>';
+
+async function syncRoles() {
+  const result = await syncRuntimeRole(pool, config.database.appRole);
+  print(`Runtime role ${result.user} ${result.created ? 'created' : 'updated'} with data-only privileges on ${result.database} (owner ${result.owner}).`);
+}
 
 async function main([command, arg]) {
   const migrator = new Migrator({ db: pool, log: print });
@@ -15,6 +22,13 @@ async function main([command, arg]) {
     case 'migrate': {
       const applied = await migrator.migrate();
       print(applied.length ? `Applied ${applied.length} migration(s).` : 'Database schema is up to date.');
+      // New tables get grants through default privileges; re-syncing also re-applies the revokes.
+      if (config.database.appRole) await syncRoles();
+      break;
+    }
+    case 'roles': {
+      if (!config.database.appRole) throw new Error('Set DATABASE_APP_USER and DATABASE_APP_PASSWORD to manage the runtime role');
+      await syncRoles();
       break;
     }
     case 'rollback': {

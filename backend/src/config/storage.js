@@ -18,6 +18,10 @@ const baseOptions = {
   region: storage.region,
   credentials: { accessKeyId: storage.accessKey, secretAccessKey: storage.secretKey },
   forcePathStyle: storage.forcePathStyle,
+  // SDK ≥3.729 adds CRC checksums by default; S3-compatible stores (SeaweedFS, R2, MinIO…) and
+  // browser PUTs to presigned URLs need the classic behaviour (DECISIONS J6).
+  requestChecksumCalculation: 'WHEN_REQUIRED',
+  responseChecksumValidation: 'WHEN_REQUIRED',
 };
 
 // Server-side operations use the private endpoint; URLs handed to browsers are signed for the public one.

@@ -32,6 +32,9 @@ const envSchema = z
 
     DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//, 'DATABASE_URL must be a postgres:// URL'),
     DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
+    // Least-privilege runtime role managed by `db:roles` / `db:migrate` (run as the schema owner).
+    DATABASE_APP_USER: z.string().regex(/^[a-z_][a-z0-9_]{0,62}$/).optional().or(z.literal('').transform(() => undefined)),
+    DATABASE_APP_PASSWORD: z.string().min(16).max(128).optional().or(z.literal('').transform(() => undefined)),
     REDIS_URL: z.string().regex(/^rediss?:\/\//, 'REDIS_URL must be a redis:// URL'),
 
     INTERNAL_SERVICE_TOKEN: secret('INTERNAL_SERVICE_TOKEN'),
@@ -97,6 +100,9 @@ const envSchema = z
     if (env.JWT_ACCESS_SECRET === env.INTERNAL_SERVICE_TOKEN) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['JWT_ACCESS_SECRET'], message: 'must differ from INTERNAL_SERVICE_TOKEN' });
     }
+    if (Boolean(env.DATABASE_APP_USER) !== Boolean(env.DATABASE_APP_PASSWORD)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['DATABASE_APP_USER'], message: 'DATABASE_APP_USER and DATABASE_APP_PASSWORD must be set together' });
+    }
     if (Boolean(env.BOOTSTRAP_ADMIN_EMAIL) !== Boolean(env.BOOTSTRAP_ADMIN_PASSWORD)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -113,6 +119,11 @@ const envSchema = z
       for (const key of ['PAYMENT_KEY_ID', 'PAYMENT_KEY_SECRET', 'PAYMENT_WEBHOOK_SECRET']) {
         if (!env[key] || PLACEHOLDER.test(env[key])) {
           ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: `${key} is required in production` });
+        }
+      }
+      for (const key of ['DATABASE_URL', 'REDIS_URL', 'DATABASE_APP_PASSWORD']) {
+        if (env[key] && /replace-with|change-?me/i.test(env[key])) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: `${key} contains a placeholder value` });
         }
       }
       if (PLACEHOLDER.test(env.STORAGE_SECRET_KEY)) {
@@ -145,7 +156,11 @@ function parseEnv(source) {
     trustProxy: env.TRUST_PROXY,
     // Tests are silent unless TEST_LOG_LEVEL is set (e.g. TEST_LOG_LEVEL=error to debug a failing run).
     logLevel: env.NODE_ENV === 'test' ? source.TEST_LOG_LEVEL || 'silent' : env.LOG_LEVEL,
-    database: { url: env.DATABASE_URL, poolMax: env.DATABASE_POOL_MAX },
+    database: {
+      url: env.DATABASE_URL,
+      poolMax: env.DATABASE_POOL_MAX,
+      appRole: env.DATABASE_APP_USER ? { user: env.DATABASE_APP_USER, password: env.DATABASE_APP_PASSWORD } : null,
+    },
     redis: { url: env.REDIS_URL },
     serviceTokens: [env.INTERNAL_SERVICE_TOKEN, env.INTERNAL_SERVICE_TOKEN_PREVIOUS].filter(Boolean),
     auth: {

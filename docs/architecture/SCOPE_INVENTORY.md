@@ -259,4 +259,6 @@ GET /users/me/reviews   (O9 → DECISIONS I9, Phase 9)
 - [x] Partner cannot alter another partner's inventory or booking financials (4/5: no partner route mutates amounts)
 - [x] CMS draft hidden; published section serialised safely (3)
 - [x] Worker/API restart does not lose outbox events (7: verified by stopping the worker; plus dispatch-failure backoff test)
-- [ ] Backup restore keeps transactional records + media references (10)
+- [x] Backup restore keeps transactional records + media references (10: drill — 80 tables, 16 migrations and media
+      references identical; `storage:verify` 0 missing, and a deliberately broken reference detected)
+- [x] Full traveller journey register → discover → plan → book → pay → complete → review → moderation → dashboards (10: `tests/e2e/journey.test.js`)

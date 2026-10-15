@@ -9,7 +9,7 @@ const SEED_FILE = /^\d{3}_[a-z0-9_]+\.js$/;
 /**
  * Runs version-controlled reference seeds in filename order. Each seed exports
  * `run(client)` and must be idempotent (upserts), because seeding is re-runnable.
- * Each seed runs in its own transaction.
+ * Each seed runs in its own transaction; one that returns 'skipped' is reported but not counted.
  */
 async function runSeeds({ db, dir = DEFAULT_DIR, log = () => {} }) {
   if (!fs.existsSync(dir)) return [];
@@ -19,9 +19,10 @@ async function runSeeds({ db, dir = DEFAULT_DIR, log = () => {} }) {
     const seed = require(path.join(dir, file));
     if (typeof seed.run !== 'function') throw new Error(`Seed ${file} must export run(client)`);
     const client = await db.connect();
+    let outcome;
     try {
       await client.query('BEGIN');
-      await seed.run(client);
+      outcome = await seed.run(client);
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK');
@@ -29,6 +30,11 @@ async function runSeeds({ db, dir = DEFAULT_DIR, log = () => {} }) {
       throw err;
     } finally {
       client.release();
+    }
+    // A seed returns 'skipped' when it does not apply (e.g. demo content in production).
+    if (outcome === 'skipped') {
+      log(`skipped ${file}`);
+      continue;
     }
     log(`seeded ${file}`);
     executed.push(file);

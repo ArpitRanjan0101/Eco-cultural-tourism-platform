@@ -70,6 +70,28 @@ describe('parseEnv', () => {
     assert.equal(parseEnv({ ...base, BOOTSTRAP_ADMIN_EMAIL: '', BOOTSTRAP_ADMIN_PASSWORD: '' }).bootstrapAdmin, null);
   });
 
+  it('pairs the runtime database role settings', () => {
+    assert.equal(parseEnv(base).database.appRole, null);
+    assert.throws(() => parseEnv({ ...base, DATABASE_APP_USER: 'tourism_app' }), /set together/);
+    assert.throws(() => parseEnv({ ...base, DATABASE_APP_USER: 'Bad-Name', DATABASE_APP_PASSWORD: 'p'.repeat(20) }), /DATABASE_APP_USER/);
+    const config = parseEnv({ ...base, DATABASE_APP_USER: 'tourism_app', DATABASE_APP_PASSWORD: 'p'.repeat(20) });
+    assert.deepEqual(config.database.appRole, { user: 'tourism_app', password: 'p'.repeat(20) });
+  });
+
+  it('accepts a complete production environment and rejects placeholder connection secrets', () => {
+    const production = {
+      ...base,
+      NODE_ENV: 'production',
+      PUBLIC_BASE_URL: 'https://api.jharkhand-tourism.in',
+      PAYMENT_KEY_ID: 'rzp_live_abc123',
+      PAYMENT_KEY_SECRET: 'k'.repeat(24),
+      PAYMENT_WEBHOOK_SECRET: 'w'.repeat(24),
+    };
+    assert.equal(parseEnv(production).isProduction, true);
+    assert.throws(() => parseEnv({ ...production, DATABASE_URL: 'postgres://app:replace-with-hex-secret@postgres:5432/tourism' }), /DATABASE_URL contains a placeholder/);
+    assert.throws(() => parseEnv({ ...production, PAYMENT_KEY_SECRET: '' }), /PAYMENT_KEY_SECRET is required/);
+  });
+
   it('rejects placeholder secrets and plain http in production', () => {
     assert.throws(
       () => parseEnv({ ...base, NODE_ENV: 'production', INTERNAL_SERVICE_TOKEN: 'replace-with-64-char-hex-secret-value!!' }),

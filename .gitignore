@@ -1,6 +1,10 @@
 .env
 .env.*
 !.env.example
+!.env.production.example
+# Database dumps and TLS private material never enter the repository.
+backups/
+infrastructure/nginx/certs/
 node_modules/
 coverage/
 *.log

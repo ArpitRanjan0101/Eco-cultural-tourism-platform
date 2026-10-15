@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jharkhand Tourism API</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.17.14/swagger-ui.min.css">
+  <style>
+    body { margin: 0; background: #fafafa; }
+    .notice { font: 14px/1.5 system-ui, sans-serif; padding: 10px 16px; background: #fff8e1; border-bottom: 1px solid #f0e0a0; }
+  </style>
+</head>
+<body>
+  <div class="notice">
+    Generated from the route definitions (<code>docs/api/openapi.json</code>). Every <code>/api/v1</code> call except
+    payment webhooks needs the <code>X-Internal-Service-Token</code> header; user routes also need a Bearer access token.
+    “Try it out” is disabled: the service token must stay server-side (BFF only).
+  </div>
+  <div id="swagger-ui"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.17.14/swagger-ui-bundle.min.js" crossorigin="anonymous"></script>
+  <script>
+    window.ui = SwaggerUIBundle({
+      url: './openapi.json',
+      dom_id: '#swagger-ui',
+      deepLinking: true,
+      docExpansion: 'none',
+      defaultModelsExpandDepth: 0,
+      supportedSubmitMethods: [],
+    });
+  </script>
+</body>
+</html>

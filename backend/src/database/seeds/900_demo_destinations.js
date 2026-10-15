@@ -59,7 +59,7 @@ const DEMO = [
 ];
 
 async function run(client) {
-  if (config.isProduction) return;
+  if (config.isProduction) return 'skipped';
   for (const item of DEMO) {
     const { rows } = await client.query(
       `INSERT INTO destinations (district_id, name, slug, summary, description, geo_location, featured, status, published_at)

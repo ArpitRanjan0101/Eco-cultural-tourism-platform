@@ -17,8 +17,8 @@ design: [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) · decision
 | 6 | Payments, webhooks, cancellations, refunds, reconciliation | ✅ Verified (2026-10-15) |
 | 7 | BullMQ, outbox, notifications | ✅ Verified (2026-10-15) |
 | 8 | Trips, favorites, reviews | ✅ Verified (2026-10-15) |
-| 9 | Admin, analytics, audit, settings | ✅ Verified (2026-10-15) — awaiting approval for Phase 10 |
-| 10 | Integration/security testing, API docs, production deployment | ⏳ |
+| 9 | Admin, analytics, audit, settings | ✅ Verified (2026-10-15) |
+| 10 | Integration/security testing, API docs, production deployment | ✅ Verified (2026-10-16) — all phases complete |
 
 ## Phase 1 — delivered
 
@@ -279,11 +279,45 @@ design: [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) · decision
 - Dev stack via nginx `:8081` as the bootstrap super admin: dashboard, all four reports, settings, audit logs, own
   reviews → 200 ✅
 
+## Phase 10 — delivered
+
+- **Database roles:** `src/database/roles.js`, `npm run db:roles`, automatic re-sync after `db:migrate`;
+  `DATABASE_APP_USER`/`DATABASE_APP_PASSWORD` env (paired, validated; placeholder checks extended to connection URLs).
+- **Production deployment:** `docker-compose.prod.yml`, `infrastructure/nginx/prod.conf` (TLS edge, ACME webroot, private
+  BFF listener on the `bff` network), `.env.production.example`, runbook `docs/operations/DEPLOYMENT.md`.
+- **Backups:** `infrastructure/backup/{backup,restore,verify-restore}.sh`, `backup` service (`--profile ops`) in both
+  compose files, `npm run storage:verify`.
+- **API docs:** Swagger UI `docs/api/index.html`, served at `http://localhost:8081/docs/` in development.
+- **Security:** dependency upgrades clearing every `npm audit` finding (J5), S3 checksum compatibility (J6),
+  `tests/api/security.test.js` (route-registry audit + HTTP hardening), `tests/integration/roles.test.js`,
+  `tests/e2e/journey.test.js`, env tests for the new rules.
+- **Fixes found by verification:** PostgreSQL TCP healthcheck (first-boot race), truthful `skipped` seed reporting,
+  single HSTS header at the edge. Decisions J1–J9.
+
+### Phase 10 verification (executed 2026-10-15/16)
+
+- `npm test` → **158 tests, 158 pass, 0 fail**, two consecutive runs on the upgraded dependencies; lint 0 ✅
+  (adds: runtime role can read/write rows but gets `42501` for DDL, `TRUNCATE`, audit rewrite/delete, migration-history
+  writes and role creation; password rotation; unsafe names refused; default privileges on new tables; route-registry
+  audit over all 239 routes; security headers, CORS, service-token gate, injection-shaped input, mass assignment,
+  prototype pollution, credential leakage, pagination caps, parser errors; full traveller journey through the API)
+- `npm audit` → **0 vulnerabilities** (was 1 critical, 2 high, 20 moderate, 2 low) ✅
+- **Restore drill (dev):** backup → `restore.sh` into a new database → `verify-restore.sh`: 80 tables, 16 migrations,
+  media counts identical; `storage:verify` against the restored DB: 1 checked, 0 missing; after deliberately breaking
+  the reference: 1 missing, exit 1 ✅
+- **Production stack smoke test** (`docker-compose.prod.yml`, fresh volumes, throwaway self-signed cert and secrets):
+  first-boot migrate (16) + runtime role created + seeds (demo seed skipped, 0 demo rows); api healthy, worker up;
+  HTTPS `/health/live` 200 with one HSTS header; HTTP → 301 HTTPS; TLS 1.0/1.1 refused; `/api/v1/regions` 404 on the
+  edge; unsigned webhook 400, GET webhook 403; BFF network: readiness all checks up, no token 401, admin login and
+  dashboard/settings/audit/revenue 200; API connects as `tourism_app` (not superuser), uid 1000, read-only root FS,
+  no capabilities; memory/CPU limits and 10 MB log rotation applied; only 80/443 published; prod backup written ✅
+- OpenAPI regenerated: 242 operations (unchanged route set) ✅
+
 ## Pending / carried forward
 
-- Phase 10: separate migration-owner and least-privilege runtime DB roles (C17); production compose (no private port publish,
-  TLS, resource limits, log rotation, secrets); backups/restore drill; Swagger UI hosting.
 - Open owner decisions O2, O6–O8 in DECISIONS.md.
+- Before launch: real TLS certificate, managed S3 buckets (versioning + CORS), SMTP provider, Razorpay live keys and
+  webhook registration, scheduled off-site backups — steps in `docs/operations/DEPLOYMENT.md`.
 - Production payment launch still gated by O2 (merchant of record, GST, settlement/payouts — Report §13 Critical).
 - SMTP credentials: `.env` has empty `SMTP_USER`/`SMTP_PASSWORD` slots (dev uses Mailpit); fill and recreate api/worker.
 
@@ -302,6 +336,11 @@ docker compose run --rm api npm test
 docker compose run --rm --no-deps api npm run lint
 docker compose run --rm --no-deps -T api node src/docs/generate.js > docs/api/openapi.json   # bash
 docker compose logs -f api worker
+docker compose --profile ops run --rm backup                            # dump to ./backups
+docker compose --profile ops run --rm backup restore.sh <file> <new_db> # restore drill
+docker compose --profile ops run --rm backup verify-restore.sh <db> <new_db>
+docker compose run --rm api npm run storage:verify                     # media objects exist
+# API reference: http://localhost:8081/docs/   ·   production: docs/operations/DEPLOYMENT.md
 ```
 
 Regenerating the lockfile after dependency changes (no host npm):

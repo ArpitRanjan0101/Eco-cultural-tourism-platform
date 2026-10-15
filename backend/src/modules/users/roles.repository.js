@@ -62,6 +62,10 @@ async function assignRole(db, userId, roleCode) {
   );
 }
 
+async function removeRole(db, userId, roleCode) {
+  await db.query('DELETE FROM user_roles WHERE user_id = $1 AND role_id = (SELECT id FROM roles WHERE code = $2)', [userId, roleCode]);
+}
+
 async function replaceUserRoles(db, userId, roleIds) {
   await db.query('DELETE FROM user_roles WHERE user_id = $1 AND NOT (role_id = ANY($2::uuid[]))', [userId, roleIds]);
   await db.query(
@@ -90,6 +94,7 @@ module.exports = {
   permissionCodesForRole,
   rolesForUser,
   assignRole,
+  removeRole,
   replaceUserRoles,
   replaceRolePermissions,
 };

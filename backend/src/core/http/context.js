@@ -7,6 +7,8 @@ function requestContext(req) {
     actorRoles: req.auth?.roles ?? [],
     actorPermissions: req.auth?.permissions ?? [],
     sessionId: req.auth?.sessionId ?? null,
+    // Set by the partner-context guard on /partners/me routes: { partnerId, role, partnerType, status }.
+    partner: req.partner ?? null,
     ip: req.clientIp ?? req.ip ?? null,
     requestId: req.id,
   };

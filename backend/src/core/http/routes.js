@@ -13,6 +13,8 @@ const { errorResponses } = require('../validation/common');
  *   summary, tags,
  *   auth: 'service' | 'user',           // 'user' = service token + user JWT
  *   permissions: ['users.read'],        // all required
+ *   anyPermissions: ['a', 'b'],         // at least one required
+ *   middleware: [fn],                   // extra guards after auth (e.g. partner context)
  *   rateLimit: { name, windowSeconds, max, by: 'ip' | 'user' },
  *   request: { params, query, body },   // zod schemas
  *   response: { status, schema?, description? },
@@ -20,15 +22,17 @@ const { errorResponses } = require('../validation/common');
  *   handler,
  * }
  */
-function mountRoutes(router, routes, { authenticate, requirePermissions }) {
+function mountRoutes(router, routes, { authenticate, requirePermissions, requireAnyPermission }) {
   for (const route of routes) {
     const chain = [];
     const limiter = route.rateLimit ? rateLimit(route.rateLimit) : null;
     if (limiter && route.rateLimit.by !== 'user') chain.push(limiter);
     if (route.auth === 'user') chain.push(authenticate);
     if (route.permissions?.length) chain.push(requirePermissions(...route.permissions));
+    if (route.anyPermissions?.length) chain.push(requireAnyPermission(...route.anyPermissions));
     if (limiter && route.rateLimit.by === 'user') chain.push(limiter);
     if (route.request) chain.push(validate(route.request));
+    if (route.middleware) chain.push(...route.middleware);
     chain.push(route.handler);
     router[route.method](route.path, ...chain);
   }
@@ -47,6 +51,7 @@ function registerRoutesOpenApi(registry, routes, prefix = '/api/v1') {
     if (route.request?.params) request.params = route.request.params;
     if (route.request?.query) request.query = route.request.query;
     if (route.request?.body) request.body = { content: { 'application/json': { schema: route.request.body } } };
+    if (route.headers) request.headers = route.headers;
 
     const { status, schema, description } = route.response;
     const success = { description: description || route.summary };
@@ -54,6 +59,7 @@ function registerRoutesOpenApi(registry, routes, prefix = '/api/v1') {
 
     const notes = [];
     if (route.permissions?.length) notes.push(`Requires permission(s): ${route.permissions.join(', ')}.`);
+    if (route.anyPermissions?.length) notes.push(`Requires one of: ${route.anyPermissions.join(', ')}.`);
     if (route.rateLimit) {
       notes.push(`Rate limit: ${route.rateLimit.max} per ${route.rateLimit.windowSeconds}s per ${route.rateLimit.by || 'ip'}.`);
     }

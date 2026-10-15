@@ -11,8 +11,8 @@ design: [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) · decision
 | 0 | Audit, inventories, architecture docs | ✅ Done (2026-10-15) |
 | 1 | Docker, foundation, PostgreSQL/PostGIS, Redis, env validation, health, migrations | ✅ Verified (2026-10-15) |
 | 2 | Auth, JWT, service token wiring, users, roles, permissions | ✅ Verified (2026-10-15) |
-| 3 | Geography, destinations, CMS, media, search | ✅ Verified (2026-10-15) — awaiting approval for Phase 4 |
-| 4 | Partners, hotels, inventory, guides, experiences, packages | ⏳ (needs O3, O5) |
+| 3 | Geography, destinations, CMS, media, search | ✅ Verified (2026-10-15) |
+| 4 | Partners, hotels, inventory, guides, experiences, packages | ✅ Verified (2026-10-15) — awaiting approval for Phase 5 |
 | 5 | Booking engine, concurrency, reservation lifecycle | ⏳ (needs O4) |
 | 6 | Payments, webhooks, cancellations, refunds, reconciliation | ⏳ (blocked on O1 gateway choice) |
 | 7 | BullMQ, outbox, notifications | ⏳ |
@@ -115,13 +115,45 @@ design: [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) · decision
 - Host E2E via nginx `:8081`: admin login → upload-init (URL signed for `localhost:8333`) → `curl` PUT 200 → complete
   `ready` → anonymous public GET 200 → delete 204; demo destinations list/nearby/search ✅
 
+## Phase 4 — delivered
+
+- **Migrations:** `0008_partners` (4), `0009_accommodation` (10), `0010_guides` (7, GiST no-overlap availability),
+  `0011_experiences_packages` (10). `booking_mode` columns (O3).
+- **Modules:** `partners` (apply, org self-service, team roles, documents, admin review/status with history, role sync,
+  partner-context guard), `properties` (properties, rooms, amenities, policies, galleries, inventory/rate calendars,
+  availability), `guides` (profiles, languages, destinations, services, availability windows, verification), `experiences`
+  (sessions, seats), `packages` (destinations, itinerary, inclusions, departures, derived end dates, starting price).
+  Deferred destination routes (`/experiences`, `/properties`, `/guides`) delivered. Search: property/guide/experience/package
+  + nearby properties.
+- **Core:** `mediaLinks.js`, `moderation.js`, `money.js` (paise arithmetic), `dates.js` (Asia/Kolkata), shared `fields`
+  (money/date/time/bookingMode), route `anyPermissions`/`middleware`/`headers`. Users: `syncManagedRoles`, `findAccountByEmail`;
+  media: `buildGalleries`, `getForAuthorizedReview`.
+- **Seed:** `004_amenities_languages`. Decisions D1–D12.
+
+### Phase 4 verification (executed 2026-10-15)
+
+- `db:migrate` applied 0008–0011 ✅ · `db:seed` (5 files) ✅ · 175 routes / OpenAPI 178 operations ✅ · lint 0 ✅
+- `npm test` → **98 tests, 98 pass, 0 fail**, run twice (repeatable) — adds: application → restricted until approval →
+  supply role granted; documents with signed review URLs; invalid transitions 409; reject needs notes; FIELD_LOCKED after
+  approval; suspension revokes roles; resubmission; self-review blocked; team rules (verified users only, manager limits,
+  last owner, self-role), role sync on join/leave; X-Partner-Id selection and refusal; property lifecycle with ownership
+  isolation (rival 404), publish requirements, room name conflict, amenities, policies, inventory/rate calendars with
+  validation (over-physical, blocked>total, past), indicative availability (tightest night, decimal-safe totals, occupancy),
+  destination-radius properties, reject→resubmit; suspended partner hides supply; partner-type supply restrictions; guide
+  overlap rejection, verification flow, language/destination filters, blocked windows hidden, suspension; experiences
+  publish requirements, session time/capacity rules, seat availability, delete; packages nights rule, itinerary bounds,
+  derived departure end dates, duplicate start 409, starting price, publish; search by property name and nearby properties ✅
+- Host via nginx: amenities 19, languages 11, admin partner review, `/partners/me` 403 for non-members ✅
+- Test infra: role-permission edits in tests now restore themselves (`withoutPermissions`); test DB rebuilt once from
+  migrations to repair grants modified by earlier runs.
+
 ## Pending / carried forward
 
 - Phase 10: separate migration-owner and least-privilege runtime DB roles (C17); production compose (no private port publish,
   TLS, resource limits, log rotation, secrets); backups/restore drill; Swagger UI hosting.
 - Open owner decisions O1–O7 in DECISIONS.md (O1 gateway blocks Phase 6).
-- Phase 4: `/destinations/:slug/{experiences,properties,guides}`; add supply types to search/nearby; partner reviewers'
-  access to private verification documents.
+- Phase 5: subtract `inventory_holds` allocations in all availability endpoints; block session deletion / departure moves
+  / inventory reductions below allocations once reservations exist; snapshot cancellation policy per booking; O4 timings.
 - Phase 7: media-processing job (dimensions, resizing) on `media.uploaded`; cleanup of stale `pending` uploads.
 - Phase 8: `/destinations/:slug/reviews`.
 - Phase 7: email delivery for `auth.*` outbox events; scrub `payload.token` after dispatch; retention cleanup job for

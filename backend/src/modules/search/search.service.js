@@ -4,15 +4,30 @@ const ApiError = require('../../core/errors/ApiError');
 const { pageMeta } = require('../../core/utils/pagination');
 const destinationsService = require('../destinations/destinations.service');
 const geographyService = require('../geography/geography.service');
+const propertiesService = require('../properties/properties.service');
+const guidesService = require('../guides/guides.service');
+const experiencesService = require('../experiences/experiences.service');
+const packagesService = require('../packages/packages.service');
 
 /**
- * Discovery across modules. Searchable types today: destinations and districts.
- * Properties, guides, experiences and packages join when their modules land (Phase 4).
+ * Discovery across modules: destinations (full-text), districts and partner supply
+ * (name + trigram). Location/category filters apply to destinations only, so a
+ * filtered search returns destinations only.
  */
-const SEARCH_TYPES = ['destination', 'district'];
-const NEARBY_TYPES = ['destination'];
-const UNIFIED_WINDOW = 500;
+const SUPPLY_SEARCH = {
+  property: (args) => propertiesService.search(args),
+  guide: (args) => guidesService.search(args),
+  experience: (args) => experiencesService.search(args),
+  package: (args) => packagesService.search(args),
+};
+const SEARCH_TYPES = ['destination', 'district', ...Object.keys(SUPPLY_SEARCH)];
 const NEARBY = { defaultKm: 25, maxKm: 300 };
+const NEARBY_SEARCH = {
+  destination: (args) => destinationsService.nearPoint(args),
+  property: (args) => propertiesService.nearPoint(args),
+};
+const NEARBY_TYPES = Object.keys(NEARBY_SEARCH);
+const UNIFIED_WINDOW = 500;
 
 const districtResult = (district) => ({
   type: 'district',
@@ -29,31 +44,40 @@ async function search({ q, type, district, region, category, page, limit }) {
     const { items, total } = await destinationsService.search({ q, district, region, category, page, limit });
     return { items: items.map((item) => ({ type: 'destination', ...item })), meta: pageMeta({ page, limit }, total) };
   }
-  // Districts are not filterable by district/category, so a filtered search returns destinations only.
-  const includeDistricts = !district && !category;
-  if (type === 'district') {
-    if (!includeDistricts) return { items: [], meta: pageMeta({ page, limit }, 0) };
-    const districts = (await geographyService.searchDistricts({ q, limit: UNIFIED_WINDOW })).filter((d) => !region || d.region.slug === region);
-    return { items: districts.slice((page - 1) * limit, page * limit).map(districtResult), meta: pageMeta({ page, limit }, districts.length) };
+  // Other types: ranked lists capped at a window, paged in memory.
+  const window = page * limit;
+  if (window > UNIFIED_WINDOW) {
+    throw ApiError.validation([{ location: 'query', path: 'page', message: `this search is limited to the first ${UNIFIED_WINDOW} results` }]);
+  }
+  const filtered = Boolean(district || region || category);
+  const nameOf = (item) => item.name ?? item.displayName;
+  const fetchType = async (kind) => {
+    if (kind === 'district') {
+      if (district || category) return [];
+      const districts = await geographyService.searchDistricts({ q, limit: window });
+      return districts.filter((d) => !region || d.region.slug === region).map(districtResult);
+    }
+    if (filtered) return [];
+    return (await SUPPLY_SEARCH[kind]({ q, limit: window })).map((item) => ({ type: kind, ...item }));
+  };
+
+  if (type) {
+    const items = await fetchType(type);
+    return { items: items.slice((page - 1) * limit, window), meta: pageMeta({ page, limit }, items.length) };
   }
 
   // Unified: merge the top of each ranked list, then page through the merged window.
-  const window = page * limit;
-  if (window > UNIFIED_WINDOW) {
-    throw ApiError.validation([{ location: 'query', path: 'page', message: `unified search is limited to the first ${UNIFIED_WINDOW} results; filter by type to go further` }]);
-  }
-  const [destinations, districts] = await Promise.all([
+  const [destinations, ...others] = await Promise.all([
     destinationsService.search({ q, district, region, category, page: 1, limit: window }),
-    includeDistricts ? geographyService.searchDistricts({ q, limit: window }) : [],
+    ...SEARCH_TYPES.filter((kind) => kind !== 'destination').map(fetchType),
   ]);
-  const scopedDistricts = districts.filter((d) => !region || d.region.slug === region);
-  const merged = [
-    ...destinations.items.map((item) => ({ type: 'destination', ...item })),
-    ...scopedDistricts.map(districtResult),
-  ].sort((a, b) => b.rank - a.rank || a.name.localeCompare(b.name));
+  const merged = [...destinations.items.map((item) => ({ type: 'destination', ...item })), ...others.flat()].sort(
+    (a, b) => b.rank - a.rank || nameOf(a).localeCompare(nameOf(b)),
+  );
+  const otherTotal = others.reduce((total, list) => total + list.length, 0);
   return {
     items: merged.slice((page - 1) * limit, window),
-    meta: pageMeta({ page, limit }, Math.min(destinations.total + scopedDistricts.length, UNIFIED_WINDOW)),
+    meta: pageMeta({ page, limit }, Math.min(destinations.total + otherTotal, UNIFIED_WINDOW)),
   };
 }
 
@@ -91,9 +115,9 @@ async function suggestions({ q, limit }) {
     .map(({ rank: _rank, ...item }) => item);
 }
 
-async function nearby({ latitude, longitude, radiusKm, page, limit }) {
-  const { items, meta } = await destinationsService.nearPoint({ latitude, longitude, radiusKm, page, limit });
-  return { items: items.map((item) => ({ type: 'destination', ...item })), meta };
+async function nearby({ latitude, longitude, radiusKm, type, page, limit }) {
+  const { items, meta } = await NEARBY_SEARCH[type]({ latitude, longitude, radiusKm, page, limit });
+  return { items: items.map((item) => ({ type, ...item })), meta };
 }
 
 async function filters() {

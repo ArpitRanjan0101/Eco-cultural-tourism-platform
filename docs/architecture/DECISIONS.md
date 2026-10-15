@@ -9,9 +9,9 @@ technical clarification applied without changing the report's scope.
 |----|-------|-----------|------------------|
 | O1 | Payment gateway (Report §8.4) | Phase 6 | Razorpay (INR, orders + signed webhooks + refunds API) behind a provider-neutral adapter |
 | O2 | Merchant-of-record / partner settlement, GST, invoice issuer (Report §1.3, §13 Critical) | Production payments | Sandbox only until decided; tax rate from `platform_settings`, default 0 |
-| O3 | Booking mode per resource: instant vs request-to-book. The report allows both but no table holds it | Phase 4 | Add `booking_mode` (`instant`/`request`) column to properties, guide_services, experiences, packages |
 | O4 | Hold duration, partner approval window, payment deadline | Phase 5 | `platform_settings`: hold 15 min, approval 24 h, payment after approval 24 h |
-| O5 | Which supply types each `partner_type` may create | Phase 4 | `accommodation`→properties, `guide`→guides, `operator`→experiences + packages, `multi`→all |
+
+O3 (booking mode) and O5 (partner types → supply) were accepted on 2026-10-15; see D1/D2.
 | O6 | Email provider | Phase 7 | SMTP (any provider); Mailpit container in development |
 | O7 | Object storage provider (production) | Production | Any S3-compatible service (AWS S3, Cloudflare R2, Wasabi…) via `STORAGE_*`; dev uses SeaweedFS (B1) |
 | O8 | Redirects have only admin routes in Report §5.13, so the BFF cannot read them without admin rights | Phase 10 (frontend) | Add public `GET /content/redirects` (service token only) — needs approval as a route outside the register |
@@ -75,6 +75,23 @@ technical clarification applied without changing the report's scope.
 | B11 | Seeds: `002` 5 Jharkhand divisions + 24 districts (approx. HQ coordinates), `003` 10 categories — insert-only. `900_demo_destinations` loads 8 **unverified demo** destinations in non-production only. |
 | B12 | Readiness reports object storage but does not gate on it (like the worker). |
 | B13 | Dev only: SeaweedFS uses `-volume.max=0 -master.volumeSizeLimitMB=256` because each bucket reserves its own volumes. |
+
+## Phase 4 decisions (partners and supply)
+
+| ID | Decision |
+|----|----------|
+| D1 | (O3) `booking_mode` (`instant`/`request`, default instant) on properties, guide_services, experiences and packages. |
+| D2 | (O5) `partner_type` → supply: accommodation→properties, guide→guides, operator→experiences+packages, multi→all. Approval grants every member the matching global role (hotel_partner / guide / package_provider); roles are re-synced from approved memberships on every approval/suspension/membership change, so suspension or leaving revokes them. |
+| D3 | Organisation roles: owner, manager, staff. Owners manage everyone; managers manage staff only; staff manage supply but not the organisation/team; nobody edits their own role; the last owner cannot be removed or demoted. Applicants (`partners.apply`) can manage their pending organisation, team and documents. `partnerType`, `legalName`, `taxIdentifier` lock after approval; editing a rejected application resubmits it. |
+| D4 | Partner supply requests require: role permission (e.g. `properties.manage.own`) + approved organisation whose type allows the supply + row ownership (`partner_id`); foreign rows return 404. Membership is resolved per request (C6, `X-Partner-Id`). |
+| D5 | Supply moderation (properties, experiences, packages): created `pending_review`; admin → `published`/`rejected`; `published` ↔ `suspended`; a partner edit of a rejected item resubmits it. Public visibility also requires the partner to be approved, expressed as a read-only `EXISTS` predicate on `partners` inside supply queries (accepted cross-module read). Reviewers cannot review their own organisation or its guides (`SELF_REVIEW_FORBIDDEN`). |
+| D6 | Guides: `display_name` and `photo_media_id` added to the report's field list. Verification: unverified → pending (on document submission) → verified/rejected. Public = active + verified + approved partner. Availability windows cannot overlap (GiST exclusion constraint). |
+| D7 | Room inventory: no row = room type's physical units, nothing blocked; no rate row = `base_price`. Date overrides ≤ physical units, no past dates, ≤ 366 days per request; shrinking physical units clamps overrides. Cancellation policy is structured JSON tiers (hours before check-in → refund %); default when unset: ≥72 h 100%, ≥24 h 50%, else 0 (to be snapshotted per booking in Phase 5). |
+| D8 | Availability endpoints (properties, guides, experiences, packages) are indicative; Phase 5 subtracts held/booked allocations from `inventory_holds` and re-checks under row locks. Deleting sessions / moving departures will also be blocked once reservations exist (Phase 5). |
+| D9 | Package departures: `end_date = start_date + duration_days - 1` (derived), one departure per start date, future dates only; `packages.starting_price` is maintained as the lowest upcoming scheduled departure price. |
+| D10 | Search adds property, guide, experience and package (name + trigram ranking); nearby supports destination and property. District/region/category filters apply to destinations only. |
+| D11 | Seed `004_amenities_languages`: 19 amenities, 11 guide languages including Santali, Mundari, Kurukh, Ho, Kharia and Nagpuri (Sadri). |
+| D12 | Route definitions gained `anyPermissions`, per-route `middleware` (partner-context guard) and documented `headers` (X-Partner-Id). |
 
 ## Technology choices (pinned in package.json / compose)
 

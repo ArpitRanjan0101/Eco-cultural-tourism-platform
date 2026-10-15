@@ -16,10 +16,10 @@ async function migrateTestDatabase() {
   await new Migrator({ db: pool }).migrate();
 }
 
-/** Clears mutable data; the RBAC catalog (migration data) is kept. */
+/** Clears mutable data; the RBAC catalog (migration data) is kept. Tests that edit role grants restore them. */
 async function resetData() {
   await pool.query(`TRUNCATE users, auth_login_attempts, outbox_events, regions, destination_categories,
-                    cms_pages, cms_menus, cms_redirects, cms_announcements CASCADE`);
+                    cms_pages, cms_menus, cms_redirects, cms_announcements, partners, amenities, guide_languages CASCADE`);
   await getRedis().flushdb(); // test Redis database only (REDIS_URL=…/1)
 }
 
@@ -28,6 +28,7 @@ async function seedReference() {
   await withTransaction(async (client) => {
     await require('../src/database/seeds/002_jharkhand_geography').run(client);
     await require('../src/database/seeds/003_destination_categories').run(client);
+    await require('../src/database/seeds/004_amenities_languages').run(client);
   });
 }
 
@@ -53,6 +54,26 @@ async function uploadMedia(app, token, { purpose = 'content_image', mimeType = '
   if (!put.ok) throw new Error(`object PUT failed: ${put.status} ${await put.text()}`);
   const done = await as.post('/media/upload-complete').send({ mediaId: init.body.data.media.id });
   return { status: done.status, body: done.body, media: done.body.data, mediaId: init.body.data.media.id };
+}
+
+/**
+ * Temporarily revokes permissions from a role for the duration of `fn`, then restores
+ * the original grants even if the test fails (the RBAC catalog persists across test files).
+ */
+async function withoutPermissions(roleCode, codes, fn) {
+  const { rows } = await pool.query(
+    `DELETE FROM role_permissions rp USING roles r, permissions p
+     WHERE rp.role_id = r.id AND rp.permission_id = p.id AND r.code = $1 AND p.code = ANY($2::text[])
+     RETURNING rp.role_id, rp.permission_id`,
+    [roleCode, codes],
+  );
+  try {
+    return await fn();
+  } finally {
+    for (const row of rows) {
+      await pool.query('INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [row.role_id, row.permission_id]);
+    }
+  }
 }
 
 async function closeConnections() {
@@ -113,6 +134,7 @@ module.exports = {
   ensureTestBuckets,
   uploadMedia,
   FILES,
+  withoutPermissions,
   closeConnections,
   createUser,
   api,

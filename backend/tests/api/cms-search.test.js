@@ -103,13 +103,11 @@ describe('CMS pages', () => {
   });
 
   it('requires cms.publish to publish', async () => {
-    const root = await actor(['super_admin']);
-    const roles = (await root.as.get('/admin/roles').expect(200)).body.data;
-    const admin = roles.find((r) => r.code === 'admin');
-    await root.as.put(`/admin/roles/${admin.id}/permissions`).send({ permissions: admin.permissions.filter((p) => p !== 'cms.publish') }).expect(200);
-    const editor = await actor(['admin']);
-    const page = (await editor.as.post('/admin/cms/pages').send({ title: 'Draft', pageType: 'landing' }).expect(201)).body.data;
-    await editor.as.patch(`/admin/cms/pages/${page.id}/status`).send({ status: 'published' }).expect(403);
+    await h.withoutPermissions('admin', ['cms.publish'], async () => {
+      const editor = await actor(['admin']);
+      const page = (await editor.as.post('/admin/cms/pages').send({ title: 'Draft', pageType: 'landing' }).expect(201)).body.data;
+      await editor.as.patch(`/admin/cms/pages/${page.id}/status`).send({ status: 'published' }).expect(403);
+    });
     const tourist = await actor(['tourist']);
     await tourist.as.get('/admin/cms/pages').expect(403);
   });

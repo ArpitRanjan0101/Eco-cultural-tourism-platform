@@ -150,6 +150,41 @@ async function assertAttachable(db, actor, mediaId, { purposes }) {
   return toMedia(media);
 }
 
+/**
+ * Media DTO with a short-lived signed URL for private assets, for callers whose
+ * module has already authorised access (e.g. admins reviewing partner documents).
+ */
+async function getForAuthorizedReview(id, db = pool) {
+  const media = await mediaRepository.findById(db, id);
+  if (!media) return null;
+  if (media.visibility === 'public' || media.status !== 'ready') return toMedia(media);
+  return toMedia(media, await storage.presignDownload({ ...location(media), expiresIn: DOWNLOAD_URL_TTL_SECONDS }));
+}
+
+/**
+ * Groups gallery link rows ({ owner_id, media_id, sort_order, is_cover }) into
+ * Map<ownerId, image[]> with public URLs; links to unavailable media are skipped.
+ */
+async function buildGalleries(links, db = pool) {
+  const media = await getPublicMediaMap(links.map((link) => link.media_id), db);
+  const galleries = new Map();
+  for (const link of links) {
+    const item = media.get(link.media_id);
+    if (!item) continue;
+    if (!galleries.has(link.owner_id)) galleries.set(link.owner_id, []);
+    galleries.get(link.owner_id).push({
+      id: item.id,
+      url: item.url,
+      altText: item.altText,
+      width: item.width,
+      height: item.height,
+      sortOrder: link.sort_order,
+      isCover: link.is_cover,
+    });
+  }
+  return galleries;
+}
+
 /** Map of id -> public media DTO for ready public assets (missing ids are omitted). */
 async function getPublicMediaMap(ids, db = pool) {
   const unique = [...new Set(ids.filter(Boolean))];
@@ -164,6 +199,8 @@ module.exports = {
   getMedia,
   deleteMedia,
   assertAttachable,
+  getForAuthorizedReview,
+  buildGalleries,
   getPublicMediaMap,
   registerReferenceCheck,
 };

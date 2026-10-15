@@ -40,7 +40,7 @@ const routes = [
     summary: 'Radius search using coordinates',
     rateLimit: { name: 'search_nearby', windowSeconds: 60, max: 120 },
     request: { query: schema.nearbyQuery },
-    response: ok(z.array(schema.destinationResult), { paginated: true }),
+    response: ok(z.array(schema.nearbyResult), { paginated: true }),
     handler: controller.nearby,
   },
   {

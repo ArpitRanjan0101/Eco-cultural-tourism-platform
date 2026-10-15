@@ -5,6 +5,10 @@ const f = require('../../core/validation/fields');
 const { paginationQuery } = require('../../core/utils/pagination');
 const { destinationCardSchema } = require('../destinations/destinations.schema');
 const { districtRefSchema } = require('../geography/geography.schema');
+const { propertyCardSchema } = require('../properties/properties.schema');
+const { guideCardSchema } = require('../guides/guides.schema');
+const { cardSchema: experienceCardSchema } = require('../experiences/experiences.schema');
+const { cardSchema: packageCardSchema } = require('../packages/packages.schema');
 const service = require('./search.service');
 
 // ---- schemas ----
@@ -41,7 +45,19 @@ const districtResult = z.object({
   location: f.geoPoint.nullable(),
   rank: z.number(),
 });
-const searchResult = z.discriminatedUnion('type', [destinationResult, districtResult]).openapi('SearchResult');
+const withType = (type, card) => card.extend({ type: z.literal(type), rank: z.number().optional() });
+const propertyResult = withType('property', propertyCardSchema);
+const searchResult = z
+  .discriminatedUnion('type', [
+    destinationResult,
+    districtResult,
+    propertyResult,
+    withType('guide', guideCardSchema),
+    withType('experience', experienceCardSchema),
+    withType('package', packageCardSchema),
+  ])
+  .openapi('SearchResult');
+const nearbyResult = z.discriminatedUnion('type', [destinationResult, propertyResult]).openapi('NearbyResult');
 const suggestion = z
   .object({ type: z.enum(['destination', 'district', 'category']), id: z.string().uuid(), name: z.string(), slug: z.string(), subtitle: z.string().nullable() })
   .openapi('SearchSuggestion');
@@ -63,5 +79,4 @@ const filtersSchema = z
   })
   .openapi('SearchFilters');
 
-
-module.exports = { searchQuery, suggestionsQuery, nearbyQuery, destinationResult, searchResult, suggestion, filtersSchema };
+module.exports = { searchQuery, suggestionsQuery, nearbyQuery, searchResult, nearbyResult, suggestion, filtersSchema };

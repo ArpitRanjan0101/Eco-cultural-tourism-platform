@@ -46,19 +46,19 @@ Phase = phase of the agreed working method in which the item is delivered.
 - [x] destination_media · [x] destination_faqs · [x] destination_related_places
 
 ### 4.3 Experiences (3) — Phase 4
-- [ ] experiences · [ ] experience_media · [ ] experience_sessions
+- [x] experiences · [x] experience_media · [x] experience_sessions
 
 ### 4.4 Accommodation (10) — Phase 4
-- [ ] properties · [ ] property_media · [ ] amenities · [ ] property_amenities · [ ] room_types
-- [ ] room_type_media · [ ] room_type_amenities · [ ] room_inventory · [ ] room_rates · [ ] property_policies
+- [x] properties · [x] property_media · [x] amenities · [x] property_amenities · [x] room_types
+- [x] room_type_media · [x] room_type_amenities · [x] room_inventory · [x] room_rates · [x] property_policies
 
 ### 4.5 Guides (7) — Phase 4
-- [ ] guides · [ ] guide_languages · [ ] guide_language_links · [ ] guide_destinations
-- [ ] guide_services · [ ] guide_availability · [ ] guide_verification_documents
+- [x] guides · [x] guide_languages · [x] guide_language_links · [x] guide_destinations
+- [x] guide_services · [x] guide_availability · [x] guide_verification_documents
 
 ### 4.6 Packages (7) — Phase 4
-- [ ] packages · [ ] package_destinations · [ ] package_itinerary_days · [ ] package_itinerary_items
-- [ ] package_inclusions · [ ] package_media · [ ] package_departures
+- [x] packages · [x] package_destinations · [x] package_itinerary_days · [x] package_itinerary_items
+- [x] package_inclusions · [x] package_media · [x] package_departures
 
 ### 4.7 Trip planner (3) — Phase 8
 - [ ] trips · [ ] trip_days · [ ] trip_stops
@@ -71,7 +71,7 @@ Phase = phase of the agreed working method in which the item is delivered.
 - [ ] payment_orders · [ ] payment_transactions · [ ] payment_webhook_events · [ ] refunds
 
 ### 4.10 Partners (4) — Phase 4
-- [ ] partners · [ ] partner_users · [ ] partner_documents · [ ] partner_approval_history
+- [x] partners · [x] partner_users · [x] partner_documents · [x] partner_approval_history
 
 ### 4.11 Reviews & favorites (2) — Phase 8
 - [ ] reviews · [ ] favorites
@@ -103,7 +103,7 @@ PUT  /admin/users/:id/roles    GET  /admin/roles            GET  /admin/permissi
 PUT  /admin/roles/:id/permissions
 ```
 
-### 5.2 Geography & destinations (36) — Phase 3 — [~] 32 implemented; 4 deferred (experiences/properties/guides → P4, reviews → P8)
+### 5.2 Geography & destinations (36) — Phase 3/4 — [~] 35 implemented; `/destinations/:slug/reviews` → P8
 ```
 GET /regions  GET /districts  GET /districts/:slug  GET /districts/:slug/destinations
 GET /destination-categories  GET /destinations  GET /destinations/featured
@@ -119,7 +119,7 @@ GET|POST /admin/destination-categories  PATCH /admin/destination-categories/:id
 PATCH /admin/destination-categories/:id/status
 ```
 
-### 5.3 Experiences (14) — Phase 4
+### 5.3 Experiences (14) — Phase 4 — [x] all 14
 ```
 GET /experiences  GET /experiences/:slug  GET /experiences/:id/sessions  GET /experiences/:id/availability
 GET|POST /partners/me/experiences  PATCH /partners/me/experiences/:id
@@ -129,7 +129,7 @@ POST /partners/me/experiences/:id/media  DELETE /partners/me/experiences/:id/med
 GET /admin/experiences  PATCH /admin/experiences/:id/status
 ```
 
-### 5.4 Accommodation (26) — Phase 4
+### 5.4 Accommodation (26) — Phase 4 — [x] all 26
 ```
 GET /properties  GET /properties/:slug  GET /properties/:id/rooms  GET /properties/:id/availability  GET /amenities
 GET|POST /partners/me/properties  PATCH /partners/me/properties/:id
@@ -145,7 +145,7 @@ GET /admin/properties  GET /admin/properties/:id  PATCH /admin/properties/:id/st
 GET|POST /admin/amenities  PATCH /admin/amenities/:id
 ```
 
-### 5.5 Guides (22) — Phase 4
+### 5.5 Guides (22) — Phase 4 — [x] all 22
 ```
 GET /guides  GET /guides/:id  GET /guides/:id/services  GET /guides/:id/availability  GET /languages
 GET|POST /partners/me/guides  PATCH /partners/me/guides/:id
@@ -157,7 +157,7 @@ GET /admin/guides  GET /admin/guides/:id  PATCH /admin/guides/:id/verification
 PATCH /admin/guides/:id/status  GET|POST /admin/languages  PATCH /admin/languages/:id
 ```
 
-### 5.6 Packages (16) — Phase 4
+### 5.6 Packages (16) — Phase 4 — [x] all 16
 ```
 GET /packages  GET /packages/:slug  GET /packages/:id/departures  GET /packages/:id/availability
 GET|POST /partners/me/packages  PATCH /partners/me/packages/:id
@@ -198,7 +198,7 @@ POST /webhooks/payments/:provider  GET /refunds/:id
 GET /admin/payments  GET /admin/refunds  POST /admin/refunds/:id/retry
 ```
 
-### 5.11 Partner onboarding (12) — Phase 4
+### 5.11 Partner onboarding (12) — Phase 4 — [x] all 12
 ```
 POST /partners/apply  GET|PATCH /partners/me  POST /partners/me/documents
 GET|POST /partners/me/users  PATCH|DELETE /partners/me/users/:userId
@@ -251,7 +251,7 @@ GET|PATCH /admin/settings  GET /admin/audit-logs
 - [ ] Exactly-once payment under duplicate webhooks/callbacks (6)
 - [ ] Payment after hold expiry reconciles without overbooking (6)
 - [ ] Refund failure/retry/duplicate callback → single refund (6)
-- [ ] Partner cannot alter another partner's inventory or booking financials (4/5)
+- [~] Partner cannot alter another partner's inventory or booking financials (4: supply/inventory isolation ✓; booking financials in 5)
 - [x] CMS draft hidden; published section serialised safely (3)
 - [ ] Worker/API restart does not lose outbox events (7)
 - [ ] Backup restore keeps transactional records + media references (10)

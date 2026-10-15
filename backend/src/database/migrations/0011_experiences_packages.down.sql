@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS package_departures;
+DROP TABLE IF EXISTS package_media;
+DROP TABLE IF EXISTS package_inclusions;
+DROP TABLE IF EXISTS package_itinerary_items;
+DROP TABLE IF EXISTS package_itinerary_days;
+DROP TABLE IF EXISTS package_destinations;
+DROP TABLE IF EXISTS packages;
+DROP TABLE IF EXISTS experience_sessions;
+DROP TABLE IF EXISTS experience_media;
+DROP TABLE IF EXISTS experiences;

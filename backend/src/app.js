@@ -13,7 +13,7 @@ const errorHandler = require('./core/middleware/errorHandler');
 const { mountRoutes } = require('./core/http/routes');
 const healthRoutes = require('./core/health/health.routes');
 const { buildOpenApiDocument } = require('./docs/openapi');
-const { authenticate, requirePermissions } = require('./modules/auth/auth.middleware');
+const { authenticate, requirePermissions, requireAnyPermission } = require('./modules/auth/auth.middleware');
 const moduleRoutes = require('./modules');
 
 function createApiRouter() {
@@ -30,7 +30,7 @@ function createApiRouter() {
   });
 
   api.get('/openapi.json', (_req, res) => res.json(buildOpenApiDocument()));
-  mountRoutes(api, moduleRoutes, { authenticate, requirePermissions });
+  mountRoutes(api, moduleRoutes, { authenticate, requirePermissions, requireAnyPermission });
 
   return api;
 }

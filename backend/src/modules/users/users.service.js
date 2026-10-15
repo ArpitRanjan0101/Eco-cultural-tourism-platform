@@ -84,6 +84,24 @@ async function findCredentialsById(db, id) {
 
 /** Adds a role (idempotent). For trusted internal flows such as partner approval and seeding. */
 const grantRole = (db, userId, roleCode) => rolesRepository.assignRole(db, userId, roleCode);
+/**
+ * Makes the user's roles within `managed` exactly `desired` (other roles untouched).
+ * Used by partner approval/membership changes to keep supply roles in sync.
+ */
+async function syncManagedRoles(db, userId, { managed, desired }) {
+  const current = (await rolesRepository.rolesForUser(db, userId)).map((role) => role.code);
+  for (const code of managed) {
+    if (desired.includes(code) && !current.includes(code)) await rolesRepository.assignRole(db, userId, code);
+    if (!desired.includes(code) && current.includes(code)) await rolesRepository.removeRole(db, userId, code);
+  }
+}
+
+/** Minimal account lookup for invitations (partner team management). */
+async function findAccountByEmail(db, email) {
+  const row = await usersRepository.findCredentialsByEmail(db, email);
+  return row && { id: row.id, fullName: row.full_name, email: row.email, status: row.status, emailVerified: Boolean(row.email_verified_at) };
+}
+
 const setPasswordHash = (db, userId, passwordHash) => usersRepository.updatePasswordHash(db, userId, passwordHash);
 const markEmailVerified = (db, userId) => usersRepository.markEmailVerified(db, userId);
 const recordLogin = (db, userId) => usersRepository.touchLastLogin(db, userId);
@@ -223,6 +241,8 @@ module.exports = {
   findCredentialsByEmail,
   findCredentialsById,
   grantRole,
+  syncManagedRoles,
+  findAccountByEmail,
   setPasswordHash,
   markEmailVerified,
   recordLogin,

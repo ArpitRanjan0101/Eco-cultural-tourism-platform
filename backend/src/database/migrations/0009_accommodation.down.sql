@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS property_policies;
+DROP TABLE IF EXISTS room_rates;
+DROP TABLE IF EXISTS room_inventory;
+DROP TABLE IF EXISTS room_type_amenities;
+DROP TABLE IF EXISTS room_type_media;
+DROP TABLE IF EXISTS room_types;
+DROP TABLE IF EXISTS property_amenities;
+DROP TABLE IF EXISTS property_media;
+DROP TABLE IF EXISTS properties;
+DROP TABLE IF EXISTS amenities;

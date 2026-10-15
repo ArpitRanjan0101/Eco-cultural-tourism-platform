@@ -39,4 +39,12 @@ function requirePermissions(...codes) {
   };
 }
 
-module.exports = { authenticate, requirePermissions };
+function requireAnyPermission(...codes) {
+  return function anyPermissionGuard(req, _res, next) {
+    if (!req.auth) return next(ApiError.unauthorized('User authentication required', 'AUTH_REQUIRED'));
+    if (!codes.some((code) => req.auth.permissions.includes(code))) return next(ApiError.forbidden());
+    return next();
+  };
+}
+
+module.exports = { authenticate, requirePermissions, requireAnyPermission };

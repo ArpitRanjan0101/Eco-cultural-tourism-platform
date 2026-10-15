@@ -376,6 +376,25 @@ async function assertCategoriesExist(db, ids, path) {
   }
 }
 
+/** Map of id -> { id, name, slug } for any status (supply modules embed destination refs). */
+async function getDestinationRefMap(ids, db = pool) {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (unique.length === 0) return new Map();
+  const rows = await repository.findCardsByIds(db, unique, { publishedOnly: false });
+  return new Map(rows.map((row) => [row.id, { id: row.id, name: row.name, slug: row.slug }]));
+}
+
+/** Published destination by slug with its location (404 otherwise). */
+async function resolvePublished(slug) {
+  const row = await requirePublished(slug);
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    location: row.latitude === null ? null : { latitude: row.latitude, longitude: row.longitude },
+  };
+}
+
 async function getActiveCategoriesByIds(ids) {
   if (ids.length === 0) return [];
   const rows = (await repository.findCategoriesByIds(pool, ids)).filter((row) => row.status === 'active');
@@ -413,4 +432,6 @@ module.exports = {
   assertDestinationsExist,
   assertCategoriesExist,
   getActiveCategoriesByIds,
+  getDestinationRefMap,
+  resolvePublished,
 };

@@ -8,6 +8,11 @@ const geographyRoutes = require('./geography/geography.routes');
 const destinationsRoutes = require('./destinations/destinations.routes');
 const cmsRoutes = require('./cms/cms.routes');
 const searchRoutes = require('./search/search.routes');
+const partnersRoutes = require('./partners/partners.routes');
+const propertiesRoutes = require('./properties/properties.routes');
+const guidesRoutes = require('./guides/guides.routes');
+const experiencesRoutes = require('./experiences/experiences.routes');
+const packagesRoutes = require('./packages/packages.routes');
 
 module.exports = [
   ...authRoutes,
@@ -17,4 +22,9 @@ module.exports = [
   ...destinationsRoutes,
   ...cmsRoutes,
   ...searchRoutes,
+  ...partnersRoutes,
+  ...propertiesRoutes,
+  ...guidesRoutes,
+  ...experiencesRoutes,
+  ...packagesRoutes,
 ];

@@ -217,12 +217,10 @@ describe('destination lifecycle', () => {
   it('enforces destination permissions (read/manage/publish)', async () => {
     const tourist = await actor(['tourist']);
     await tourist.as.get('/admin/destinations').expect(403);
-    const root = await actor(['super_admin']);
-    const roles = (await root.as.get('/admin/roles').expect(200)).body.data;
-    const admin = roles.find((r) => r.code === 'admin');
-    await root.as.put(`/admin/roles/${admin.id}/permissions`).send({ permissions: admin.permissions.filter((p) => p !== 'destinations.publish') }).expect(200);
-    const editor = await actor(['admin']);
-    const id = (await editor.as.post('/admin/destinations').send({ districtId: await idOf('districts', 'ranchi'), name: 'Editor Draft' }).expect(201)).body.data.id;
-    await editor.as.patch(`/admin/destinations/${id}/status`).send({ status: 'published' }).expect(403);
+    await h.withoutPermissions('admin', ['destinations.publish'], async () => {
+      const editor = await actor(['admin']);
+      const id = (await editor.as.post('/admin/destinations').send({ districtId: await idOf('districts', 'ranchi'), name: 'Editor Draft' }).expect(201)).body.data.id;
+      await editor.as.patch(`/admin/destinations/${id}/status`).send({ status: 'published' }).expect(403);
+    });
   });
 });

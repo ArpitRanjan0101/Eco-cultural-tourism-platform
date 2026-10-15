@@ -30,8 +30,34 @@ const uniqueIds = ({ min = 0, max }) =>
     .max(max)
     .refine((ids) => new Set(ids).size === ids.length, 'ids must be unique');
 
+/** Decimal money string, e.g. "2500.00" (never a float). */
+const money = z.string().regex(/^\d{1,10}(\.\d{1,2})?$/, 'amount must be a decimal string, e.g. "2500.00"');
+const date = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD')
+  .refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().startsWith(value), 'invalid date');
+const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'time must be HH:MM (24h)');
+const bookingMode = z.enum(['instant', 'request']);
+
 const statusBody = (statusSchema) => z.object({ status: statusSchema }).strict();
 const idParams = z.object({ id: uuid });
 const slugParams = z.object({ slug });
 
-module.exports = { slug, name, optionalText, uuid, activeStatus, publishStatus, geoPoint, safeHref, uniqueIds, statusBody, idParams, slugParams };
+module.exports = {
+  slug,
+  name,
+  optionalText,
+  uuid,
+  activeStatus,
+  publishStatus,
+  geoPoint,
+  safeHref,
+  uniqueIds,
+  money,
+  date,
+  time,
+  bookingMode,
+  statusBody,
+  idParams,
+  slugParams,
+};

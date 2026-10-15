@@ -61,6 +61,15 @@ const envSchema = z
     STORAGE_PUBLIC_BASE_URL: z.string().url(),
     STORAGE_FORCE_PATH_STYLE: z.enum(['true', 'false']).default('true').transform((value) => value === 'true'),
 
+    // Payment gateway (DECISIONS O1: Razorpay). Keys may be empty in development (payment
+    // routes then answer 503 PAYMENTS_NOT_CONFIGURED); they are required in production.
+    PAYMENT_PROVIDER: z.enum(['razorpay']).default('razorpay'),
+    PAYMENT_KEY_ID: z.string().optional().transform((value) => value || undefined),
+    PAYMENT_KEY_SECRET: z.string().optional().transform((value) => value || undefined),
+    PAYMENT_WEBHOOK_SECRET: z.string().optional().transform((value) => value || undefined),
+    PAYMENT_API_BASE_URL: z.string().url().default('https://api.razorpay.com/v1'),
+    PAYMENT_HTTP_TIMEOUT_MS: z.coerce.number().int().min(1000).max(30000).default(10000),
+
     // Optional first super-admin created by `npm run db:seed`.
     BOOTSTRAP_ADMIN_EMAIL: z.string().trim().toLowerCase().email().optional().or(z.literal('').transform(() => undefined)),
     BOOTSTRAP_ADMIN_NAME: z.string().trim().max(150).optional(),
@@ -90,6 +99,11 @@ const envSchema = z
       for (const key of ['INTERNAL_SERVICE_TOKEN', 'INTERNAL_SERVICE_TOKEN_PREVIOUS', 'JWT_ACCESS_SECRET']) {
         if (env[key] && PLACEHOLDER.test(env[key])) {
           ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: `${key} is a placeholder value` });
+        }
+      }
+      for (const key of ['PAYMENT_KEY_ID', 'PAYMENT_KEY_SECRET', 'PAYMENT_WEBHOOK_SECRET']) {
+        if (!env[key] || PLACEHOLDER.test(env[key])) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: `${key} is required in production` });
         }
       }
       if (PLACEHOLDER.test(env.STORAGE_SECRET_KEY)) {
@@ -144,6 +158,14 @@ function parseEnv(source) {
       privateBucket: env.STORAGE_PRIVATE_BUCKET,
       publicBaseUrl: env.STORAGE_PUBLIC_BASE_URL.replace(/\/+$/, ''),
       forcePathStyle: env.STORAGE_FORCE_PATH_STYLE,
+    },
+    payments: {
+      provider: env.PAYMENT_PROVIDER,
+      keyId: env.PAYMENT_KEY_ID,
+      keySecret: env.PAYMENT_KEY_SECRET,
+      webhookSecret: env.PAYMENT_WEBHOOK_SECRET,
+      apiBaseUrl: env.PAYMENT_API_BASE_URL.replace(/\/+$/, ''),
+      timeoutMs: env.PAYMENT_HTTP_TIMEOUT_MS,
     },
     bootstrapAdmin: env.BOOTSTRAP_ADMIN_EMAIL
       ? { email: env.BOOTSTRAP_ADMIN_EMAIL, password: env.BOOTSTRAP_ADMIN_PASSWORD, fullName: env.BOOTSTRAP_ADMIN_NAME || 'Platform Administrator' }

@@ -37,6 +37,9 @@ const TRANSITIONS = {
   requested: ['pending_payment', 'rejected', 'expired', 'cancelled'],
   pending_payment: ['confirmed', 'expired', 'cancelled'],
   confirmed: ['completed', 'cancelled'],
+  // Only via reconfirmLatePayment(): a verified payment arriving after the hold lapsed,
+  // when capacity can still be re-acquired under the supply lock (Report §11.1).
+  expired: ['confirmed'],
 };
 
 const iso = (value) => (value ? value.toISOString() : null);
@@ -451,6 +454,63 @@ async function confirmAfterPayment(client, bookingId) {
   return { confirmed: true };
 }
 
+/**
+ * Late payment: the hold lapsed (booking expired, or still pending with an expired hold).
+ * Re-acquires capacity under the supply lock at the originally paid price; returns
+ * { confirmed: false } when capacity is gone, so the caller refunds instead of overbooking.
+ */
+async function reconfirmLatePayment(client, bookingId) {
+  const booking = await repository.find(client, bookingId, { forUpdate: true });
+  if (!booking || !['expired', 'pending_payment'].includes(booking.booking_status)) {
+    return { confirmed: false, reason: `BOOKING_${(booking?.booking_status ?? 'missing').toUpperCase()}` };
+  }
+  const offer = await SUPPLY[booking.item_type].prepareBooking(client, booking.booking_details.request, { lock: true });
+  if (!offer.available || offer.serviceStartAt <= new Date()) return { confirmed: false, reason: 'CAPACITY_UNAVAILABLE' };
+  await allocations.transitionHolds(client, bookingId, ['held'], 'expired');
+  await placeHold(client, offer, booking.item_id, new Date(Date.now() + 60_000));
+  await allocations.transitionHolds(client, bookingId, ['held'], 'confirmed');
+  await setStatus(client, booking, 'confirmed', {
+    reason: 'Late payment verified; capacity re-acquired',
+    fields: { paymentStatus: 'paid', confirmedAt: new Date(), expiresAt: null },
+  });
+  await emit(client, 'booking.confirmed', booking, { latePayment: true });
+  return { confirmed: true, latePayment: true };
+}
+
+/** Booking row for the payments module (ownership is checked by the caller). */
+async function getForPayment(db, bookingId, { forUpdate = false } = {}) {
+  return repository.find(db, bookingId, { forUpdate });
+}
+
+/** payment_status bookkeeping driven by the payments module. */
+async function setPaymentStatus(client, bookingId, paymentStatus) {
+  await repository.update(client, bookingId, { paymentStatus });
+}
+
+/**
+ * Applies refunded totals: payment_status becomes refunded/partially_refunded and a
+ * cancellation awaiting this refund is marked refunded (or refund_failed).
+ */
+async function applyRefundOutcome(client, bookingId, { refundedMinor, paidMinor, cancellationRefund }) {
+  if (refundedMinor > 0) {
+    await repository.update(client, bookingId, { paymentStatus: refundedMinor >= paidMinor ? 'refunded' : 'partially_refunded' });
+  }
+  if (cancellationRefund) await repository.setCancellationStatus(client, bookingId, cancellationRefund);
+}
+
+/** Cancellations whose refund has not been issued yet (consumed by the payments sweep). */
+async function listCancellationsAwaitingRefund(limit = 50) {
+  return (await repository.listRefundPendingCancellations(pool, limit)).map((row) => ({
+    bookingId: row.booking_id,
+    refundAmount: row.refund_amount,
+    reason: row.reason,
+  }));
+}
+
+async function getCancellation(db, bookingId) {
+  return repository.findCancellation(db, bookingId);
+}
+
 /** Expires lapsed requests/holds and completes finished stays. Safe to run concurrently. */
 async function runMaintenance({ batchSize = 100 } = {}) {
   const expired = await withTransaction(async (client) => {
@@ -492,6 +552,12 @@ module.exports = {
   adminGet,
   adminCancel,
   confirmAfterPayment,
+  reconfirmLatePayment,
+  getForPayment,
+  setPaymentStatus,
+  applyRefundOutcome,
+  listCancellationsAwaitingRefund,
+  getCancellation,
   runMaintenance,
   computeRefund,
 };

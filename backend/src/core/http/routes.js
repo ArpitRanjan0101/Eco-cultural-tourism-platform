@@ -11,7 +11,8 @@ const { errorResponses } = require('../validation/common');
  * {
  *   method, path,                       // Express path, e.g. '/admin/users/:id'
  *   summary, tags,
- *   auth: 'service' | 'user',           // 'user' = service token + user JWT
+ *   auth: 'service' | 'user' | 'webhook', // 'user' = service token + user JWT; 'webhook' = no service token
+ *                                         // (mounted before the gate; the handler verifies a provider signature)
  *   permissions: ['users.read'],        // all required
  *   anyPermissions: ['a', 'b'],         // at least one required
  *   middleware: [fn],                   // extra guards after auth (e.g. partner context)
@@ -71,7 +72,8 @@ function registerRoutesOpenApi(registry, routes, prefix = '/api/v1') {
       tags: route.tags,
       summary: route.summary,
       description: notes.join(' ') || undefined,
-      security: route.auth === 'user' ? [{ ServiceToken: [], BearerAuth: [] }] : [{ ServiceToken: [] }],
+      // 'webhook' routes are public ingress authenticated by a provider signature inside the handler.
+      security: route.auth === 'user' ? [{ ServiceToken: [], BearerAuth: [] }] : route.auth === 'webhook' ? [] : [{ ServiceToken: [] }],
       request,
       responses: { [status]: success, ...errorResponses(...[...statuses].sort()) },
     });

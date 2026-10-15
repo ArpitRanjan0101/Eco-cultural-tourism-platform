@@ -13,8 +13,8 @@ design: [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) · decision
 | 2 | Auth, JWT, service token wiring, users, roles, permissions | ✅ Verified (2026-10-15) |
 | 3 | Geography, destinations, CMS, media, search | ✅ Verified (2026-10-15) |
 | 4 | Partners, hotels, inventory, guides, experiences, packages | ✅ Verified (2026-10-15) |
-| 5 | Booking engine, concurrency, reservation lifecycle | ✅ Verified (2026-10-15) — awaiting approval for Phase 6 |
-| 6 | Payments, webhooks, cancellations, refunds, reconciliation | ⏳ (blocked on O1 gateway choice) |
+| 5 | Booking engine, concurrency, reservation lifecycle | ✅ Verified (2026-10-15) |
+| 6 | Payments, webhooks, cancellations, refunds, reconciliation | ✅ Verified (2026-10-15) — awaiting approval for Phase 7 |
 | 7 | BullMQ, outbox, notifications | ⏳ |
 | 8 | Trips, favorites, reviews | ⏳ |
 | 9 | Admin, analytics, audit, settings | ⏳ |
@@ -173,13 +173,42 @@ design: [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) · decision
   capacity before the sweep, late confirmation refused (`HOLD_EXPIRED`, `BOOKING_EXPIRED`), expiry history; completion
   sweep; tourist/partner/admin isolation ✅
 
+## Phase 6 — delivered
+
+- **Migration:** `0013_payments` (payment_orders, payment_transactions, payment_webhook_events, refunds; unique provider ids,
+  one automatic refund per booking/kind).
+- **Payments module:** Razorpay adapter; payment-order (idempotent, order reuse); verify (signature + provider fetch +
+  capture); webhook ingress (public, signed, persisted, idempotent); settlement with late-payment re-acquisition or
+  refund and duplicate-payment refunds; refunds (cancellation sweep, receipt-based duplicate protection, retries,
+  manual partial refunds); reconciliation; admin search. Worker runs payment maintenance with the booking sweep.
+- **Bookings interfaces:** `reconfirmLatePayment`, `setPaymentStatus`, `applyRefundOutcome`,
+  `listCancellationsAwaitingRefund`; transition `expired → confirmed` (late payment only).
+- **App/config:** raw body capture for webhook HMAC; `auth: 'webhook'` routes before the service-token gate;
+  `PAYMENT_*` env (Report §10.2). Decisions F1–F10.
+
+### Phase 6 verification (executed 2026-10-15)
+
+- `db:migrate` applied 0013 ✅ · 199 routes ✅ · lint 0 ✅ · api/worker restarted ✅
+- `npm test` → **120 tests, 120 pass, 0 fail**, two consecutive runs — adds (against the in-process fake Razorpay):
+  order creation in paise + reuse; forged signature 400; foreign user 404; verify confirms once (repeat verify no-op);
+  amount mismatch refused; failed then authorized→captured payments; webhook forged signature 400, unknown provider 404,
+  duplicate event id acknowledged, webhook+order.paid+callback → one transaction and one confirmation, payload redaction,
+  ignored events; webhook processing failure retried by maintenance; late payment re-confirmed when capacity free and
+  fully refunded (no overbooking) when not; duplicate capture refunded with booking still paid; lost callback/webhook
+  reconciled; paid cancellation → exactly one provider refund, refund status visible, refund.failed webhook cannot regress
+  a succeeded refund; failed refund + lost-response retry adopts the existing provider refund (no second refund);
+  partial admin refund with idempotency, over-refund 409, permissions, audit ✅
+- nginx public edge: `POST /api/v1/webhooks/payments/razorpay` reaches the API (503 until keys are set), GET denied,
+  other API paths 404 ✅
+- To exercise real Razorpay test mode: set `PAYMENT_KEY_ID/SECRET` (rzp_test_…) and `PAYMENT_WEBHOOK_SECRET`, expose
+  the public edge, and register `<PUBLIC_BASE_URL>/api/v1/webhooks/payments/razorpay` in the Razorpay dashboard.
+
 ## Pending / carried forward
 
 - Phase 10: separate migration-owner and least-privilege runtime DB roles (C17); production compose (no private port publish,
   TLS, resource limits, log rotation, secrets); backups/restore drill; Swagger UI hosting.
 - Open owner decisions O1–O7 in DECISIONS.md (O1 gateway blocks Phase 6).
-- Phase 6: `POST /bookings/:id/payment-order`, `POST /admin/bookings/:id/refund`; consume `booking.cancelled` refunds;
-  late-payment reconciliation (re-acquire capacity if free, else refund); gateway choice O1 still open.
+- Production payment launch still gated by O2 (merchant of record, GST, settlement/payouts — Report §13 Critical).
 - Phase 7: move the 30 s booking sweep onto the BullMQ `booking-expiration` queue; idempotency/auth-attempt retention cleanup.
 - Phase 7: media-processing job (dimensions, resizing) on `media.uploaded`; cleanup of stale `pending` uploads.
 - Phase 8: `/destinations/:slug/reviews`.

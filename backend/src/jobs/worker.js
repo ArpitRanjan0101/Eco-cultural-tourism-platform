@@ -7,6 +7,7 @@ const { pool } = require('../config/database');
 const { createRedisConnection } = require('../config/redis');
 const { recordHeartbeat, removeHeartbeat, HEARTBEAT_INTERVAL_MS } = require('./heartbeat');
 const bookingsService = require('../modules/bookings/bookings.service');
+const paymentsService = require('../modules/payments/payments.service');
 
 // Lapsed holds stop counting immediately (capacity checks compare expires_at); this sweep
 // moves the bookings themselves to expired/completed and emits their outbox events.
@@ -36,6 +37,8 @@ async function main() {
     try {
       const result = await bookingsService.runMaintenance();
       if (result.expired || result.completed) logger.info(result, 'Booking maintenance');
+      const payments = await paymentsService.runMaintenance();
+      if (Object.values(payments).some(Boolean)) logger.info(payments, 'Payment maintenance');
     } catch (err) {
       logger.error({ err }, 'Booking maintenance failed');
     } finally {

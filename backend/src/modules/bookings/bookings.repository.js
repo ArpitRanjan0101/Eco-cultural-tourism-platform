@@ -128,6 +128,23 @@ async function insertCancellation(db, { bookingId, reason, cancellationFee, refu
   );
 }
 
+async function setCancellationStatus(db, bookingId, status) {
+  await db.query('UPDATE booking_cancellations SET status = $2 WHERE booking_id = $1', [bookingId, status]);
+}
+
+async function findCancellation(db, bookingId) {
+  const { rows } = await db.query('SELECT refund_amount, status FROM booking_cancellations WHERE booking_id = $1', [bookingId]);
+  return rows[0] ?? null;
+}
+
+async function listRefundPendingCancellations(db, limit) {
+  const { rows } = await db.query(
+    "SELECT booking_id, refund_amount, reason FROM booking_cancellations WHERE status = 'refund_pending' ORDER BY created_at LIMIT $1",
+    [limit],
+  );
+  return rows;
+}
+
 /** Locks a batch of bookings whose approval/payment deadline passed (skips rows other workers hold). */
 async function lockDueForExpiry(db, limit) {
   const { rows } = await db.query(
@@ -159,6 +176,9 @@ module.exports = {
   detailParts,
   list,
   insertCancellation,
+  setCancellationStatus,
+  findCancellation,
+  listRefundPendingCancellations,
   lockDueForExpiry,
   lockDueForCompletion,
 };

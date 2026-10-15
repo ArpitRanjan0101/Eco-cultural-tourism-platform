@@ -68,7 +68,7 @@ Phase = phase of the agreed working method in which the item is delivered.
 - [x] booking_status_history · [x] booking_cancellations · [x] booking_documents
 
 ### 4.9 Payments & refunds (4) — Phase 6
-- [ ] payment_orders · [ ] payment_transactions · [ ] payment_webhook_events · [ ] refunds
+- [x] payment_orders · [x] payment_transactions · [x] payment_webhook_events · [x] refunds
 
 ### 4.10 Partners (4) — Phase 4
 - [x] partners · [x] partner_users · [x] partner_documents · [x] partner_approval_history
@@ -181,7 +181,7 @@ PATCH /trips/:id/stops/reorder
 GET /search  GET /search/suggestions  GET /search/nearby  GET /search/filters
 ```
 
-### 5.9 Bookings (16) — Phase 5 — [~] 14 implemented; payment-order and admin refund → Phase 6
+### 5.9 Bookings (16) — Phase 5/6 — [x] all 16
 ```
 POST /bookings/quote  POST /bookings  GET /bookings  GET /bookings/:id  GET /bookings/:id/status
 POST /bookings/:id/cancel  GET /bookings/:id/documents  POST /bookings/:id/payment-order (Phase 6)
@@ -191,7 +191,7 @@ GET /admin/bookings  GET /admin/bookings/:id  POST /admin/bookings/:id/cancel
 POST /admin/bookings/:id/refund (Phase 6)
 ```
 
-### 5.10 Payments & refunds (8) — Phase 6
+### 5.10 Payments & refunds (8) — Phase 6 — [x] all 8
 ```
 GET /payments/orders/:id  GET /payments/booking/:bookingId  POST /payments/verify
 POST /webhooks/payments/:provider  GET /refunds/:id
@@ -245,13 +245,13 @@ GET|PATCH /admin/settings  GET /admin/audit-logs
 
 ## 5. Critical end-to-end scenarios (Section 11.1)
 - [x] Register → verify → login → refresh → logout; revoked refresh cannot be reused (2)
-- [~] Anonymous/unauthorised cannot reach private/partner/admin data (2: profile + admin covered; partner in 4)
+- [x] Anonymous/unauthorised cannot reach private/partner/admin data (2/4/5/6)
 - [x] Two customers race for last hotel room → exactly one wins (5: 6 concurrent, 1 succeeds)
 - [x] Two users race for same guide slot → only non-overlapping commit (5: 4 concurrent + overlap checks)
-- [ ] Exactly-once payment under duplicate webhooks/callbacks (6)
-- [ ] Payment after hold expiry reconciles without overbooking (6)
-- [ ] Refund failure/retry/duplicate callback → single refund (6)
-- [~] Partner cannot alter another partner's inventory or booking financials (4: supply/inventory isolation ✓; booking financials in 5)
+- [x] Exactly-once payment under duplicate webhooks/callbacks (6)
+- [x] Payment after hold expiry reconciles without overbooking (6: re-acquire or full refund)
+- [x] Refund failure/retry/duplicate callback → single refund (6)
+- [x] Partner cannot alter another partner's inventory or booking financials (4/5: no partner route mutates amounts)
 - [x] CMS draft hidden; published section serialised safely (3)
 - [ ] Worker/API restart does not lose outbox events (7)
 - [ ] Backup restore keeps transactional records + media references (10)

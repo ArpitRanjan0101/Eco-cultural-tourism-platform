@@ -19,8 +19,10 @@ const moduleRoutes = require('./modules');
 function createApiRouter() {
   const api = express.Router();
 
-  // Payment webhooks (Phase 6) are mounted here, before the service-token gate,
-  // because they authenticate with provider signatures instead.
+  // Payment webhooks are mounted before the service-token gate: they authenticate with
+  // provider signatures instead (and nginx forwards only this path from the public edge).
+  const guards = { authenticate, requirePermissions, requireAnyPermission };
+  mountRoutes(api, moduleRoutes.filter((route) => route.auth === 'webhook'), guards);
 
   api.use(requireServiceToken);
   api.use(clientIp);
@@ -30,7 +32,7 @@ function createApiRouter() {
   });
 
   api.get('/openapi.json', (_req, res) => res.json(buildOpenApiDocument()));
-  mountRoutes(api, moduleRoutes, { authenticate, requirePermissions, requireAnyPermission });
+  mountRoutes(api, moduleRoutes.filter((route) => route.auth !== 'webhook'), guards);
 
   return api;
 }
@@ -51,7 +53,15 @@ function createApp() {
   );
   app.use(requestId);
   app.use(httpLogger);
-  app.use(express.json({ limit: '1mb' }));
+  // The raw bytes are kept for provider webhook signature verification (HMAC over the exact body).
+  app.use(
+    express.json({
+      limit: '1mb',
+      verify: (req, _res, buffer) => {
+        req.rawBody = buffer;
+      },
+    }),
+  );
 
   app.use('/health', healthRoutes);
   app.use('/api/v1', createApiRouter());

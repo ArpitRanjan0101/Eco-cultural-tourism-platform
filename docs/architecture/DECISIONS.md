@@ -7,9 +7,8 @@ technical clarification applied without changing the report's scope.
 
 | ID | Topic | Needed by | Proposed default |
 |----|-------|-----------|------------------|
-| O1 | Payment gateway (Report §8.4) | Phase 6 | Razorpay (INR, orders + signed webhooks + refunds API) behind a provider-neutral adapter |
 | O2 | Merchant-of-record / partner settlement, GST, invoice issuer (Report §1.3, §13 Critical) | Production payments | Sandbox only until decided; tax rate from `platform_settings`, default 0 |
-O3 (booking mode), O4 (timings) and O5 (partner types → supply) were accepted on 2026-10-15; see D1/D2/E2.
+O1 (Razorpay), O3 (booking mode), O4 (timings) and O5 (partner types → supply) were accepted on 2026-10-15; see F1/D1/D2/E2.
 | O6 | Email provider | Phase 7 | SMTP (any provider); Mailpit container in development |
 | O7 | Object storage provider (production) | Production | Any S3-compatible service (AWS S3, Cloudflare R2, Wasabi…) via `STORAGE_*`; dev uses SeaweedFS (B1) |
 | O8 | Redirects have only admin routes in Report §5.13, so the BFF cannot read them without admin rights | Phase 10 (frontend) | Add public `GET /content/redirects` (service token only) — needs approval as a route outside the register |
@@ -106,6 +105,21 @@ O3 (booking mode), O4 (timings) and O5 (partner types → supply) were accepted 
 | E9 | Cancellation: unpaid bookings cancel free; paid bookings refund from the snapshotted policy tiers by hours before service start (admin may waive fees and cancel after start; audited). `booking.cancelled` outbox events carry the refund amount for the payments module (Phase 6). Users cannot cancel after service start. |
 | E10 | `confirmAfterPayment(client, bookingId)` is the payments-module interface: confirms only while holds are active, otherwise returns `HOLD_EXPIRED`/`BOOKING_<STATUS>` for reconciliation (Phase 6). |
 | E11 | Booking references `JHT-YYMMDD-XXXXXX` (unambiguous alphabet), retried on collision. `TEST_LOG_LEVEL` env enables logs during tests. |
+
+## Phase 6 decisions (payments and refunds)
+
+| ID | Decision |
+|----|----------|
+| F1 | (O1) Razorpay via a single adapter (`payments/providers/razorpay.js`: Orders, Payments, Capture, Refunds REST APIs with Basic auth). Env names follow Report §10.2 (`PAYMENT_PROVIDER`, `PAYMENT_KEY_ID`, `PAYMENT_KEY_SECRET`, `PAYMENT_WEBHOOK_SECRET`) plus `PAYMENT_API_BASE_URL`. Keys are optional in development (routes return 503 `PAYMENTS_NOT_CONFIGURED`) and required in production. |
+| F2 | Never trust the browser: `POST /payments/verify` checks the Checkout HMAC (order_id|payment_id), then fetches the payment from Razorpay and matches order, amount (paise) and currency before confirming; authorized payments are captured server-side. |
+| F3 | Callback, webhook and reconciliation all converge on one idempotent `settlePayment` under the order row lock; a capture already settled is acknowledged without side effects. Exactly one captured transaction and one confirmation per payment. |
+| F4 | Webhooks: mounted before the service-token gate (route `auth: 'webhook'`), verified by HMAC over the raw body, persisted (redacted to ids/amounts/statuses) before processing, unique per `X-Razorpay-Event-Id`. Failed processing returns 200 and is retried by the worker (≤10 attempts). |
+| F5 | A captured payment that cannot confirm its booking is refunded in full: late payment after hold expiry first re-acquires capacity under the supply lock (expired → confirmed, at the paid price); if capacity is gone → `late_payment` refund (no overbooking). A second capture for an already confirmed booking → `duplicate_payment` refund (booking stays paid). |
+| F6 | Refunds: `refunds.kind` (cancellation / late_payment / duplicate_payment / manual) is an addition; automatic kinds are unique per booking (or payment). The refund id is sent as the Razorpay `receipt`; before every (re)submission existing provider refunds are checked for that receipt, so a lost response never causes a second refund. Refund rows lock the captured transaction so totals can never exceed the capture. Succeeded is terminal. |
+| F7 | Paid cancellations (`booking_cancellations.status = refund_pending`) become refunds via the worker sweep (every 30 s; event-driven via the outbox in Phase 7). Failed automatic refunds retry with exponential backoff (max 5); admins retry via `POST /admin/refunds/:id/retry` (`refunds.retry`). Manual refunds need `refunds.initiate` + Idempotency-Key and are audited. |
+| F8 | Reconciliation: unpaid orders older than 2 minutes are re-checked against Razorpay at most every 5 minutes for 3 days; captured payments settle, unpaid lapsed orders become `expired`. |
+| F9 | `payment_orders.reconciled_at`, `payment_transactions.provider/method`, `payment_webhook_events.event_type/attempts/last_error` and `refunds.attempts/last_error/requested_by/updated_at` are additions to the report's field lists. |
+| F10 | Tests run the real adapter against an in-process fake Razorpay HTTP server (`tests/fakeRazorpay.js`); no keys or network needed. |
 
 ## Technology choices (pinned in package.json / compose)
 

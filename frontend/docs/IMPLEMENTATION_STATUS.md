@@ -11,10 +11,10 @@ Backend status: [../../docs/IMPLEMENTATION_STATUS.md](../../docs/IMPLEMENTATION_
 
 | Phase | Scope | Exit gate | Status |
 |-------|-------|-----------|--------|
-| 0 | Architecture, requirements and API contract audit (documentation only) | All Phase 0 documents exist; every planned page maps to confirmed operations; gaps recorded; WO1–WO10 answered or defaults accepted | ✅ Delivered (2026-10-17), **awaiting approval** |
-| 1 | Next.js scaffold, Docker (`web` service, dev/prod targets), env validation, Tailwind, ESLint, test runners, contract generator in Node (W24) | `docker compose build web` + `up` serves a placeholder page; lint, unit tests and production build pass in Docker; no secret in client chunks | ⏳ Not started |
+| 0 | Architecture, requirements and API contract audit (documentation only) | All Phase 0 documents exist; every planned page maps to confirmed operations; gaps recorded; WO1–WO10 answered or defaults accepted | ✅ Approved (2026-10-17, by starting Phase 1; WO1/WO2 defaults applied) |
+| 1 | Next.js scaffold, Docker (dev/prod/e2e targets, `compose.dev.yml`), env validation, Tailwind, ESLint, Vitest + Playwright foundation | Images build; dev server boots and renders; lint, unit and browser tests pass in Docker; no secret in client-visible output | ✅ Delivered (2026-10-17), **awaiting approval** |
 | 2 | Design tokens and shared components (ui, forms, feedback, layout, navigation, data-display), public site shell | Every catalogued Phase 2 component built with tests and axe checks; COMPONENT_CATALOG updated | ⏳ |
-| 3 | BFF core: backend client, cookies, middleware refresh single-flight, CSRF, allowlisted forwarder, auth handlers; auth pages (register, verify, login, forgot/reset, logout) | BFF integration tests (token never in responses, CSRF refusal, header stripping, parallel refresh → one backend call); auth journey E2E against the dev stack | ⏳ |
+| 3 | BFF core: backend client, cookies, middleware refresh single-flight, CSRF, allowlisted forwarder (+ Node contract generator, W24), auth handlers; auth pages (register, verify, login, forgot/reset, logout) | BFF integration tests (token never in responses, CSRF refusal, header stripping, parallel refresh → one backend call); auth journey E2E against the dev stack | ⏳ |
 | 4 | Public discovery: CMS renderer, homepage, `/pages/[slug]`, destinations, districts, explore, search, SEO (metadata, sitemap, robots) | All public read routes used per API_MAPPING; CMS drafts not visible; unknown sections skipped; Lighthouse/axe checks recorded | ⏳ |
 | 5 | Supply browsing: stays, guides, experiences, packages (lists, detail, availability, reviews) | Detail pages show live availability from the API; empty/error states; E2E browse flows | ⏳ |
 | 6 | Booking and payments: quote, create (Idempotency-Key), checkout with Razorpay, verify, result, cancel | E2E quote → booking → checkout; `PAYMENTS_NOT_CONFIGURED` state verified; with test keys, sandbox payment confirmed via verify | ⏳ |
@@ -24,6 +24,44 @@ Backend status: [../../docs/IMPLEMENTATION_STATUS.md](../../docs/IMPLEMENTATION_
 | 10 | Hardening and handover: a11y and performance pass, security review, production compose + nginx edge routing to `web`, docs | Production stack smoke test; final checklist signed off | ⏳ |
 
 Operation counts per phase come from [API_MAPPING.md](API_MAPPING.md) and add up to all 242 contract operations.
+
+## Phase 1 — delivered (2026-10-17)
+
+- **App:** Next.js 16.3.8 App Router (JS/JSX), React 19.3.0, Tailwind 4.3.3 (`@theme` foundation tokens), `@/*` alias.
+  Root layout with `AppProviders` client boundary, placeholder home page, `loading`/`error`/`not-found` boundaries,
+  `GET /api/health` (container liveness, no backend call). No tourism features, BFF or auth.
+- **Config:** `src/config/env.server.js` (`server-only`, zod 4): `BACKEND_INTERNAL_URL`, `INTERNAL_SERVICE_TOKEN`
+  (≥32 chars), `APP_ORIGIN`, `BACKEND_TIMEOUT_MS`, `SESSION_COOKIE_SECURE`; production rejects placeholder token,
+  non-https origin and insecure cookies. Validated at startup via `src/instrumentation.js` → process exits 1, naming
+  keys only. `src/config/site.js` public identity. `.env.example` without secrets.
+- **Docker:** `frontend/Dockerfile` targets `dev`, `prod` (standalone, non-root, healthcheck), `e2e` (Playwright
+  image); `build` stage runs `check:bundle` with a canary token. `frontend/compose.dev.yml` (W25). Toolchain W26–W27.
+- **Tests:** Vitest + RTL (`smoke.test.js`, `env.server.test.js`, `check-client-bundle.test.js`), Playwright
+  (`src/tests/e2e/smoke.spec.js` + warm-up global setup). ESLint 9 flat config with `eslint-config-next/core-web-vitals`,
+  `--max-warnings 0`.
+- **Backend:** untouched. Root `docker-compose.yml` untouched.
+
+### Phase 1 verification (executed 2026-10-17, all in Docker)
+
+- `docker compose -f frontend/compose.dev.yml build web` ✅ · `docker build --target prod` ✅ (build + bundle check:
+  37 client-visible files, no server-only values or names) · e2e image ✅. Sizes: prod 398 MB, dev 1.07 GB, e2e 3.57 GB.
+- Dev server `up` → healthy; host `GET /` 200 with the h1, `GET /nope` 404, no `X-Powered-By` ✅
+- Network: from `web`, `http://nginx:8081/health/live` 200 and `/api/v1/regions` 401 without token (private listener
+  reachable, service-token gate intact) ✅
+- Fail-fast: dev server with a 8-char token / empty `APP_ORIGIN` → exits 1 with
+  `Invalid server configuration: INTERNAL_SERVICE_TOKEN must be at least 32 characters; APP_ORIGIN Invalid URL` ✅
+- `npm run lint` → 0 problems over 22 files (22 `@next`, 6 `jsx-a11y`, 16 `react-hooks` rules active) ✅
+- `npm test` → **3 files, 16 tests, 16 pass** (shell smoke incl. error boundary hiding error text, env rules,
+  bundle checker catching a planted token and variable name) ✅
+- Playwright → **4 passed** (root in Chromium, 404 + link home, health no-store, no `X-Powered-By`) ✅
+- Prod image: with the dev `.env` → exits 1 (`APP_ORIGIN must use https…; SESSION_COOKIE_SECURE must be true…`);
+  with a production-valid config → Docker health `healthy`, `GET /` 200; runs as `node` on Node 22.23.2; 12 runtime
+  packages, none of eslint/vitest/jsdom/playwright/braces; no `.env` file in the image ✅
+- Hot reload through the Windows bind mount: Turbopack never picked up a change; webpack + polling within ~2 s → W26 ✅
+- Issues found and fixed during verification: root-owned `.next` volume (EACCES), npm 10.9 lockfile crash (W27),
+  Next 16 blocking dev HMR from `127.0.0.1`/`web` (`allowedDevOrigins`), e2e timeouts on cold dev compiles (warm-up
+  + timeouts), bundle checker crash on a missing output folder.
+- Known and accepted: W28 dev-only `npm audit` finding.
 
 ## Phase 0 — delivered (2026-10-17)
 
@@ -100,7 +138,7 @@ CMS_CONTRACTS,PERMISSIONS_MATRIX,DECISIONS,IMPLEMENTATION_STATUS}.md`, `frontend
 
 ## Pending / needs owner input
 
-- Approve Phase 0, or amend the proposed decisions in DECISIONS.md.
-- Answer or accept defaults for **WO1–WO10** (Tailwind version, test stack, Markdown renderer, maps/tiles, brand
+- Approve Phase 1 (decisions W25–W28).
+- Answer or accept defaults for **WO3–WO10** (Markdown renderer, maps/tiles, brand
   identity, languages, instance count, CMS redirects, `/admin/media`, multi-membership partners).
 - Backend dependencies: O2 (live payments), O8 (redirects), G3 (memberships list) — none blocks Phases 1–7.

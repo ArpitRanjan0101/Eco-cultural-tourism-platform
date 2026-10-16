@@ -1,0 +1,61 @@
+# Frontend development stack. A separate compose project from the backend (root docker-compose.yml), joined to
+# the backend's existing `edge` network so the BFF reaches nginx's private listener at http://nginx:8081.
+# Start the backend stack first (`docker compose up -d` in the repository root).
+#
+#   docker compose -f frontend/compose.dev.yml up -d --build web
+#   docker compose -f frontend/compose.dev.yml run --rm web npm run lint
+#   docker compose -f frontend/compose.dev.yml run --rm web npm test
+#   docker compose -f frontend/compose.dev.yml --profile e2e run --rm e2e
+name: jharkhand-tourism-web
+
+services:
+  web:
+    build:
+      context: .
+      target: dev
+    image: jharkhand-tourism-web:dev
+    init: true
+    # Server-only configuration, validated at startup (src/config/env.server.js). Required.
+    env_file: .env
+    environment:
+      NODE_ENV: development
+      # Bind mounts from a Windows host deliver no file-change events. Turbopack cannot poll, so the dev server
+      # runs on webpack with polling (DECISIONS W26).
+      WATCHPACK_POLLING: "true"
+    ports:
+      - "127.0.0.1:${WEB_HOST_PORT:-3000}:3000"
+    volumes:
+      - ./:/app
+      # Keep Linux node_modules and the build cache inside the container (anonymous volumes).
+      # After dependency changes: rebuild and recreate with `up -d --build -V web`.
+      - /app/node_modules
+      - /app/.next
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # Browser smoke tests against the running dev server (on demand only).
+  e2e:
+    build:
+      context: .
+      target: e2e
+    image: jharkhand-tourism-web:e2e
+    profiles: [e2e]
+    environment:
+      E2E_BASE_URL: http://web:3000
+    volumes:
+      - ./playwright-report:/e2e/playwright-report
+      - ./test-results:/e2e/test-results
+    depends_on:
+      web: { condition: service_healthy }
+    networks: [backend]
+
+networks:
+  backend:
+    external: true
+    name: jharkhand-tourism_edge

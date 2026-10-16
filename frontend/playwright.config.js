@@ -1,0 +1,20 @@
+import { defineConfig, devices } from '@playwright/test';
+
+// Runs in the `e2e` container against the dev server on the shared network (compose.dev.yml). The dev server
+// compiles each route on first request, so global setup warms the routes and timeouts allow for that.
+export default defineConfig({
+  testDir: './src/tests/e2e',
+  globalSetup: './src/tests/e2e/global-setup.js',
+  timeout: 60_000,
+  expect: { timeout: 10_000 },
+  fullyParallel: true,
+  forbidOnly: true,
+  retries: 0,
+  reporter: [['list'], ['html', { open: 'never' }]],
+  use: {
+    baseURL: process.env.E2E_BASE_URL ?? 'http://web:3000',
+    navigationTimeout: 45_000,
+    trace: 'retain-on-failure',
+  },
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+});

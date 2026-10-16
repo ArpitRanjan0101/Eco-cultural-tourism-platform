@@ -6,7 +6,18 @@ Docker. Feature components are listed under their feature when built.
 
 Status: `planned` (designed, not built) · `built` (implemented and tested) · `changed` (contract changed since last review).
 
-**Phase 0:** inventory only. Nothing is built yet; props and variants are proposals reviewed in Phase 2.
+**Phase 0:** inventory only; props and variants are proposals reviewed in Phase 2.
+
+## App shell (Phase 1) — built
+
+| File | Purpose | Tests |
+|------|---------|-------|
+| `app/layout.jsx` | `<html lang="en">`, metadata template, wraps `AppProviders` | smoke.test.js |
+| `providers/AppProviders.jsx` | Single client boundary for future providers (pass-through today) | via layout |
+| `app/loading.jsx` | `role="status"` spinner with screen-reader text | smoke.test.js |
+| `app/error.jsx` | Route error boundary: shows `digest` reference, never the error message; "Try again" → `reset()` | smoke.test.js |
+| `app/not-found.jsx` | 404 page with link home | smoke.test.js, e2e |
+| `app/page.jsx` | Placeholder home (replaced in Phase 4) | smoke.test.js, e2e |
 
 ## Design tokens (Phase 2)
 

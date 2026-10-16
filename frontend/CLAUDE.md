@@ -57,10 +57,29 @@ unrelated functionality.
 - Advance phases without explicit approval.
 - Edit generated files by hand: `docs/API_MAPPING.md` (and from Phase 1 the BFF allowlist). Regenerate them.
 
-## 6. Generated artefacts
+## 6. Commands (repository root, Docker only)
 
 ```powershell
-# Phase 0 interim generator (W24); replaced by a Docker-run Node script in Phase 1
+docker compose up -d                                                     # backend stack first (shared network)
+Copy-Item frontend\.env.example frontend\.env                            # then set INTERNAL_SERVICE_TOKEN from root .env
+docker compose -f frontend/compose.dev.yml up -d --build web             # dev server → http://127.0.0.1:3000
+docker compose -f frontend/compose.dev.yml run --rm --no-deps web npm run lint
+docker compose -f frontend/compose.dev.yml run --rm --no-deps web npm test
+docker compose -f frontend/compose.dev.yml --profile e2e run --rm e2e    # browser smoke tests (dev server running)
+docker build --target prod -t jharkhand-tourism-web:prod frontend        # prod image (fails on client-bundle leaks)
+
+# After dependency changes: regenerate the lockfile with the image's pinned npm, then recreate the dev volumes
+docker build --target base -t jharkhand-tourism-web:base frontend
+docker run --rm -v "${PWD}\frontend:/app" -w /app jharkhand-tourism-web:base npm install --package-lock-only --ignore-scripts
+docker compose -f frontend/compose.dev.yml up -d --build -V web
+```
+
+Dev uses webpack with polling for hot reload on the Windows bind mount (W26). Exact pins only; no `^`/`~`.
+
+## 7. Generated artefacts
+
+```powershell
+# Phase 0 interim generator (W24); replaced by a Docker-run Node script in Phase 3
 powershell -NoProfile -ExecutionPolicy Bypass -File frontend\scripts\gen-api-mapping.ps1 `
   -Spec "$PWD\docs\api\openapi.json" -Out "$PWD\frontend\docs\API_MAPPING.md"
 ```
@@ -68,7 +87,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File frontend\scripts\gen-api-map
 Regenerate whenever `../docs/api/openapi.json` changes. On Windows, edit text files with the Edit tool, not
 PowerShell `Set-Content` (UTF-8 mangling).
 
-## 7. Report after every task
+## 8. Report after every task
 
 ```
 Changed files:

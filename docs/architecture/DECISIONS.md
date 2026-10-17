@@ -137,6 +137,7 @@ Companion documents: [ARCHITECTURE.md](ARCHITECTURE.md) (structure), [FLOW.md](F
 | B11 | Seeds: `002` 5 Jharkhand divisions + 24 districts (approx. HQ coordinates), `003` 10 categories — insert-only. `900_demo_destinations` loads 8 **unverified demo** destinations in non-production only (reported as `skipped` in production, J9). |
 | B12 | Readiness reports object storage but does not gate on it (like the worker). |
 | B13 | Dev only: SeaweedFS uses `-volume.max=0 -master.volumeSizeLimitMB=256` because each bucket reserves its own volumes. |
+| B14 | (2026-10-17, owner-approved for frontend Phase 4) Eight more CMS section types: `home_search`, `featured_stays`, `experience_grid`, `guide_spotlight`, `package_showcase` (live public cards: `source: latest` = newest listed by `-createdAt`, or `manual` ids in order, max 12; manual ids must be publicly listed when saved, unlisted ones are dropped at render), and `image_text`, `statistics_strip` (curated figures typed by editors, not computed), `cultural_highlights` (editorial). Same safe-text and link rules as B9. Migration `0017_cms_section_types` widens the `section_type` CHECK; its rollback deletes sections of the new types. Supply cards come from each module's `listPublic` / `getPublicCardsByIds` (no repository imports, P1). |
 
 ### Phase 4 — Partners and supply (D)
 

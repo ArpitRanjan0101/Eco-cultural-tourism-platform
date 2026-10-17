@@ -12,7 +12,8 @@ export default function NavItemLink({ item, current = false, className, onNaviga
     return (
       <a href={item.href} target="_blank" rel="noopener noreferrer" className={className}>
         {item.label}
-        <ExternalIcon className="ml-1 inline size-3.5" />
+        {/* Separate text node: the accessible name needs the space before "(opens in a new tab)". */}{' '}
+        <ExternalIcon className="inline size-3.5" />
         <VisuallyHidden>(opens in a new tab)</VisuallyHidden>
       </a>
     );

@@ -14,8 +14,8 @@ function SafeLink({ href, children }) {
   if (isExternalHref(href)) {
     return (
       <a href={href} target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline underline-offset-4">
-        {children}
-        <ExternalIcon className="ml-1 inline size-3.5" />
+        {children}{' '}
+        <ExternalIcon className="inline size-3.5" />
         <VisuallyHidden>(opens in a new tab)</VisuallyHidden>
       </a>
     );

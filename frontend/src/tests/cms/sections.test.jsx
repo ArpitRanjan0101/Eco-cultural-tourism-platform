@@ -1,5 +1,7 @@
-import { render, screen, within } from '@testing-library/react';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { render as rtlRender, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createQueryClient } from '@/providers/QueryProvider';
 import Markdown, { safeUrlTransform } from '@/cms/Markdown';
 import SectionRenderer, { firstSectionIsHero } from '@/cms/SectionRenderer';
 import { SECTION_REGISTRY } from '@/cms/sectionRegistry';
@@ -7,6 +9,10 @@ import { SECTION_SCHEMAS } from '@/cms/sectionSchemas';
 import { BACKEND_SECTION_TYPES } from '@/cms/sectionTypes.generated';
 import { expectNoAxeViolations } from '../axe';
 import { ALL_SECTIONS, SECTION_FIXTURES, cards } from './fixtures';
+
+// Sections render inside the app's providers (home_search uses the router and TanStack Query for autocomplete).
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+const render = (ui) => rtlRender(ui, { wrapper: ({ children }) => <QueryClientProvider client={createQueryClient()}>{children}</QueryClientProvider> });
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -43,7 +49,9 @@ describe('SectionRenderer (4.6)', () => {
     for (const heading of ['Must-see places', 'Ways to explore', 'Districts', 'Places to stay', 'Experiences', 'Local guides', 'Tour packages', 'Sample art', 'Living culture', 'Questions']) {
       expect(screen.getByRole('heading', { level: 2, name: heading })).toBeInTheDocument();
     }
-    expect(screen.getByRole('search', { name: 'Where to?' })).toHaveAttribute('action', '/search');
+    const searchSection = screen.getByRole('region', { name: 'Where to?' });
+    expect(within(searchSection).getByRole('search', { name: 'Site search' })).toHaveAttribute('action', '/search');
+    expect(within(searchSection).getByRole('combobox')).toHaveAttribute('placeholder', 'Waterfalls, forests…');
     expect(screen.getByText('24')).toBeInTheDocument();
     await expectNoAxeViolations(container);
   });

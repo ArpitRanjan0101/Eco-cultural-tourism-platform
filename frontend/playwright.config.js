@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const baseURL = process.env.E2E_BASE_URL ?? 'http://web:3000';
+
 // Runs in the `e2e` container against the production build (`web-e2e`, compose.dev.yml). Global setup warms the
 // routes; timeouts also allow pointing E2E_BASE_URL at the slower dev server.
 export default defineConfig({
@@ -14,7 +16,7 @@ export default defineConfig({
   retries: 0,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? 'http://web:3000',
+    baseURL,
     navigationTimeout: 45_000,
     trace: 'retain-on-failure',
   },

@@ -16,7 +16,8 @@ Backend status: [../../docs/IMPLEMENTATION_STATUS.md](../../docs/IMPLEMENTATION_
 | 2 | Design tokens and shared components, groups A–F (layout, actions, forms, navigation/overlays, data/feedback, rich components) | Every catalogued Phase 2 component built with usage example, documented props/variants, keyboard behaviour and tests; axe clean; lint/build/tests pass in Docker | ✅ Approved (2026-10-17, by starting Phase 3) |
 | 3 | Secure BFF + JWT auth: backend client, cookies, proxy refresh single-flight, CSRF, allowlisted forwarder (+ Node contract generator, W24), session handlers, browser client + TanStack Query, auth pages, route guards, PermissionGate | BFF integration tests (token never in responses, CSRF refusal, header stripping, parallel refresh → one backend call); auth journey E2E against the real stack | ✅ Approved (2026-10-17, by starting Phase 4) |
 | 4 | Public layout, CMS renderer and dynamic homepage (redefined by the owner's Phase 4 spec): header/navigation/footer/announcements, 16-section registry (+ backend B14), homepage, `/pages/[slug]`, SEO metadata, robots | Every section validated and rendered from real CMS data; drafts private; unsafe content never rendered; axe clean; tests in Docker | ✅ Delivered (2026-10-17), **awaiting approval** — CMS e2e blocked by the dev DB incident (see below) |
-| 5 | Discovery and supply browsing: destinations, districts, explore, search, sitemap; stays, guides, experiences, packages (lists, detail, availability, reviews) | Detail pages show live availability from the API; empty/error states; E2E browse flows | ⏳ |
+| 5 | Geography, destinations, search and maps (owner's Phase 5 spec): regions/districts, destination list/detail, unified search + autocomplete, Leaflet/OSM maps, explore + near me, SEO | URL-driven filters per contract; real data only; maps lazy and coordinate-honest; tests in Docker | ✅ Delivered (2026-10-17), **awaiting approval** |
+| 5b | Supply browsing: stays, guides, experiences, packages (lists, detail, availability, reviews) — cards already link to these routes | Detail pages show live availability from the API; empty/error states; E2E browse flows | ⏳ |
 | 6 | Booking and payments: quote, create (Idempotency-Key), checkout with Razorpay, verify, result, cancel | E2E quote → booking → checkout; `PAYMENTS_NOT_CONFIGURED` state verified; with test keys, sandbox payment confirmed via verify | ⏳ |
 | 7 | Tourist account: profile, avatar upload, bookings, trips, favourites, own reviews, notifications | All `/account` routes; owner isolation visible as 404 states; E2E account journey | ⏳ |
 | 8 | Partner portal: application, organisation, team, verification, all supply editors, calendars, bookings approve/reject, dashboard/reports | All 58 Phase 8 operations wired; partner E2E (onboard → supply → approve booking) | ⏳ |
@@ -24,6 +25,55 @@ Backend status: [../../docs/IMPLEMENTATION_STATUS.md](../../docs/IMPLEMENTATION_
 | 10 | Hardening and handover: a11y and performance pass, security review, production compose + nginx edge routing to `web`, docs | Production stack smoke test; final checklist signed off | ⏳ |
 
 Operation counts per phase come from [API_MAPPING.md](API_MAPPING.md) and add up to all 242 contract operations.
+
+## Phase 5 — delivered (2026-10-17)
+
+- **Pages:** `/explore` (search, types of place with live counts, regions, featured, near me), `/districts`
+  (region filter, list/map), `/districts/[slug]` (hero, places with filters/sort/list-map/pagination),
+  `/destinations` (filters, supported sorts, chips, list/map, pagination), `/destinations/[slug]` (hero,
+  overview, visiting info, gallery, FAQ, related; streamed: nearby + map, stays/experiences/guides nearby,
+  reviews + rating summary), `/search` (combobox autocomplete, type tabs, sidebar/drawer filters, chips, empty
+  states, capped pagination), `/sitemap.xml`, `robots.txt` with absolute sitemap; `(public)/error.jsx` and
+  `(public)/not-found.jsx` inside the site chrome.
+- **Modules:** `features/geography`, `features/destinations`, `features/search`, `features/reviews` (components,
+  `server/` fetchers, `schemas/`, `services/`, `hooks/`); `components/maps` (W40); `components/navigation`
+  `SortSelector`, `ActiveFilterChips`, `ResultsPagination`; `Rating`; `lib/url/query.js`;
+  `lib/bff/publicApi.js` (`getCatalogue` cached, `getLive` per request with client IP, W41).
+- **Contracts used:** `/regions`, `/districts`, `/districts/:slug`, `/districts/:slug/destinations`,
+  `/destination-categories`, `/destinations`, `/destinations/featured`, `/destinations/:slug` (+ `/nearby`,
+  `/experiences`, `/properties`, `/guides`, `/reviews`), `/search`, `/search/suggestions`, `/search/nearby`,
+  `/search/filters`. No new BFF routes (W41); browser calls use the allowlisted forwarder.
+- **Dependency:** `leaflet` 1.9.4 (WO4 resolved). `HomeSearchSection` now uses the shared `GlobalSearch`.
+
+### Phase 5 verification (executed 2026-10-17, Docker)
+
+- `npm run lint` → 0 ✅ · `npm test` → **19 files, 258 tests, 258 pass** ✅ — adds: URL state (`hrefWith` keeps
+  filters, resets page), destination/search query parsing drops every out-of-contract value, sort options =
+  advertised sorts, search window cap (page ≤ 41 at 12/page), suggestion links; map places only from valid API
+  coordinates, popup built from text (markup in names inert), OSM link; region filter `aria-current`;
+  destination filters = supported fields only, GET, sort kept; distance display; opening hours open / Closed /
+  "No hours published"; rating summary never invents a score; sort selector keeps filters and submits on change;
+  pagination keeps filters and respects the cap; chips; map/list toggle (map loaded only on demand, hidden
+  without coordinates); search tabs (filter-limited types unavailable); typed results (unknown skipped);
+  combobox autocomplete via BFF (↓/↑/Enter/Escape, Escape keeps the query); near me requests nothing until
+  asked, explains refusal, sends real coordinates; server fetchers (cached catalogue without headers, 404 →
+  null, invalid slugs never sent, 503 propagates, search uncached with client IP).
+- Production build ✅; bundle check **73 client-visible files clean** ✅
+- Playwright on the production build against the real backend → **32 passed** ✅ (Phase 1–4 suites + 8
+  discovery tests: destination filters/sort/chips through the URL with invalid params ignored and axe clean;
+  Leaflet map loaded on demand with a keyboard-focusable marker opening a popup link and OSM attribution;
+  destination detail h1/breadcrumbs/visiting info/reviews/nearby map, axe clean, unknown slug → 404 page;
+  districts region filter + district page; search autocomplete by keyboard, results, type tab and district
+  filter in the URL, no-results state, axe clean; mobile filter drawer, no horizontal scroll; explore near me →
+  `/search/nearby` 200 → cards + map (device position stubbed, W43); sitemap/robots absolute URLs). OSM tile
+  requests are answered locally in tests.
+- **Still not run:** `cms.spec.js` (Phase 4) — the dev database still has no admin account (incident below).
+- Issues found and fixed: stale dev `node_modules` after adding Leaflet (container recreated with fresh
+  volumes); Escape in the search box also cleared the query (Chrome search-field default) — now only closes the
+  suggestions; the Phase 4 CMS test needed the app providers for the shared search; an import cycle between the
+  geography and destinations features; half-star glyph unsupported in common fonts.
+- Data note: the dev database currently holds only the test-created destinations left by the incident (Dassam
+  Falls, Hundru Falls, Ranchi Lake); the e2e suite discovers its sample through the API and does not assume names.
 
 ## Phase 4 — delivered (2026-10-17)
 
@@ -282,7 +332,9 @@ CMS_CONTRACTS,PERMISSIONS_MATRIX,DECISIONS,IMPLEMENTATION_STATUS}.md`, `frontend
 
 ## Pending / needs owner input
 
-- Approve Phase 4 (decisions W37–W39, backend B14).
+- Approve Phase 4 (decisions W37–W39, backend B14) and Phase 5 (W40–W43).
+- Before launch: replace the OpenStreetMap tile URL with a dedicated provider (`src/config/maps.js`, OSM tile
+  usage policy).
 - Recover the development database (incident 2026-10-17), then run `cms.spec.js` to close Phase 4 verification.
 - Before production (Phase 10): set `TRUSTED_PROXY_HOPS` for the edge topology; multiple `web` instances would
   need shared refresh coordination (WO7).

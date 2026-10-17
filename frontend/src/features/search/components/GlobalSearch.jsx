@@ -40,7 +40,10 @@ export default function GlobalSearch({ defaultValue = '', placeholder, label = '
       event.preventDefault();
       setOpen(true);
       setActive((index) => (index <= 0 ? suggestions.length - 1 : index - 1));
-    } else if (event.key === 'Escape') {
+    } else if (event.key === 'Escape' && expanded) {
+      // First Escape only closes the suggestions (combobox pattern); without this, Chrome's search field would
+      // also clear the typed text. A second Escape keeps the browser's native "clear" behaviour.
+      event.preventDefault();
       setOpen(false);
       setActive(-1);
     } else if (event.key === 'Enter' && expanded && active >= 0) {

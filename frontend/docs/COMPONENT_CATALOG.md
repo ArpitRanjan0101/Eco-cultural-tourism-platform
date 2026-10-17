@@ -146,6 +146,19 @@ production unless `ENABLE_DESIGN_SYSTEM=true`, which only the e2e target sets �
 Formatting helpers: `lib/formatting/money.js` (`formatMoney`), `lib/formatting/dates.js` (`formatDate`,
 `formatInstant`, `formatDuration`).
 
+## Discovery — Phase 5
+
+| Component | Where | Props / behaviour | Status |
+|-----------|-------|-------------------|--------|
+| `RegionCard`, `DistrictCard`, `DistrictGrid`, `DistrictHero`, `DistrictDestinationList`, `CategoryCard`, `CategorySelector`, `RegionFilter` | `features/geography` | API Region/District/Category; district list with filters, sort, list/map, pagination; region filter as links with `aria-current` | built |
+| `DestinationCard` (+ `showDistance`), `DestinationGrid`, `DestinationFilters`, `DestinationSort`, `DestinationHero`, `DestinationGallery`, `DestinationOverview`, `VisitorInformation`, `DestinationFAQ`, `RelatedDestinations`, `NearbyDestinations`, `DestinationBreadcrumbs`, `DestinationSupply`, `DestinationReviews` | `features/destinations` | API DestinationCard/DestinationDetail; GET filter forms; opening hours show open / Closed / "No hours published" exactly as the API says | built |
+| `GlobalSearch`, `SearchSuggestions`, `SearchResults`, `SearchResultTabs`, `SearchFilterForm`, `FilterSidebar`, `MobileFilterDrawer`, `SearchEmptyState`, `SearchPagination`, `NearMeExplorer` | `features/search` | combobox autocomplete (↓/↑/Enter/Escape, live count), typed result cards, tabs from `/search/filters`, desktop sidebar + mobile drawer sharing one form, near-me via device location | built |
+| `ReviewList` | `features/reviews` | approved reviews, "Verified booking" badge only when the API says so | built |
+| `MapView`, `LeafletMap` (internal), `PlaceMarker`, `MapListToggle`, `NearbyMapPanel`, `toMapPlaces`, `osmLink` | `components/maps` | one lazy Leaflet abstraction (W40) | built |
+| `SortSelector`, `ActiveFilterChips`, `ResultsPagination` | `components/navigation` | sort GET form (auto-submit, keeps filters), removable chips + clear all, filter-preserving pagination with optional page cap | built |
+| `Stars`, `RatingSummary` | `components/data-display/Rating.jsx` | API rating summary; "No reviews yet" instead of any default score | built |
+
 ## Planned for later phases
 
-`Rating`/`RatingSummary` (Phase 5, reviews) · `PartnerSwitcher` (blocked by gap G3) · CMS editor (Phase 9).
+`PartnerSwitcher` (blocked by gap G3) · CMS editor (Phase 9) · stay/guide/experience/package listing and detail
+pages (cards already link to them).

@@ -124,6 +124,9 @@ Restart `api` and `worker` (`docker compose restart api worker`) after code chan
 
 - Framework: `node:test` + `supertest`, run serially against real PostgreSQL, Redis, SeaweedFS and Mailpit, with an
   in-process fake Razorpay (`tests/fakeRazorpay.js`). Tests use the `_test` database and Redis DB 1 only.
+- **Always run tests through `npm test`.** Never `node --test <file>` directly: without the script's environment a
+  test file targets the development database (this reset the dev DB on 2026-10-17). `tests/helpers.js` now
+  refuses to load outside a `_test` database / non-zero Redis db.
 - Layout: `tests/unit`, `tests/integration`, `tests/api`, `tests/e2e`. Shared setup in `tests/helpers.js`
   (`resetData`, `seedReference`, user/login helpers) and `tests/fixtures.js`.
 - Every behaviour change needs a test, including the failure paths (403/404/409/422) and owner isolation

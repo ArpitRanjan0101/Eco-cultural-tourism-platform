@@ -14,9 +14,9 @@ Backend status: [../../docs/IMPLEMENTATION_STATUS.md](../../docs/IMPLEMENTATION_
 | 0 | Architecture, requirements and API contract audit (documentation only) | All Phase 0 documents exist; every planned page maps to confirmed operations; gaps recorded; WO1–WO10 answered or defaults accepted | ✅ Approved (2026-10-17, by starting Phase 1; WO1/WO2 defaults applied) |
 | 1 | Next.js scaffold, Docker (dev/prod/e2e targets, `compose.dev.yml`), env validation, Tailwind, ESLint, Vitest + Playwright foundation | Images build; dev server boots and renders; lint, unit and browser tests pass in Docker; no secret in client-visible output | ✅ Approved (2026-10-17, by starting Phase 2) |
 | 2 | Design tokens and shared components, groups A–F (layout, actions, forms, navigation/overlays, data/feedback, rich components) | Every catalogued Phase 2 component built with usage example, documented props/variants, keyboard behaviour and tests; axe clean; lint/build/tests pass in Docker | ✅ Approved (2026-10-17, by starting Phase 3) |
-| 3 | Secure BFF + JWT auth: backend client, cookies, proxy refresh single-flight, CSRF, allowlisted forwarder (+ Node contract generator, W24), session handlers, browser client + TanStack Query, auth pages, route guards, PermissionGate | BFF integration tests (token never in responses, CSRF refusal, header stripping, parallel refresh → one backend call); auth journey E2E against the real stack | ✅ Delivered (2026-10-17), **awaiting approval** |
-| 4 | Public discovery: CMS renderer, homepage, `/pages/[slug]`, destinations, districts, explore, search, SEO (metadata, sitemap, robots) | All public read routes used per API_MAPPING; CMS drafts not visible; unknown sections skipped; Lighthouse/axe checks recorded | ⏳ |
-| 5 | Supply browsing: stays, guides, experiences, packages (lists, detail, availability, reviews) | Detail pages show live availability from the API; empty/error states; E2E browse flows | ⏳ |
+| 3 | Secure BFF + JWT auth: backend client, cookies, proxy refresh single-flight, CSRF, allowlisted forwarder (+ Node contract generator, W24), session handlers, browser client + TanStack Query, auth pages, route guards, PermissionGate | BFF integration tests (token never in responses, CSRF refusal, header stripping, parallel refresh → one backend call); auth journey E2E against the real stack | ✅ Approved (2026-10-17, by starting Phase 4) |
+| 4 | Public layout, CMS renderer and dynamic homepage (redefined by the owner's Phase 4 spec): header/navigation/footer/announcements, 16-section registry (+ backend B14), homepage, `/pages/[slug]`, SEO metadata, robots | Every section validated and rendered from real CMS data; drafts private; unsafe content never rendered; axe clean; tests in Docker | ✅ Delivered (2026-10-17), **awaiting approval** — CMS e2e blocked by the dev DB incident (see below) |
+| 5 | Discovery and supply browsing: destinations, districts, explore, search, sitemap; stays, guides, experiences, packages (lists, detail, availability, reviews) | Detail pages show live availability from the API; empty/error states; E2E browse flows | ⏳ |
 | 6 | Booking and payments: quote, create (Idempotency-Key), checkout with Razorpay, verify, result, cancel | E2E quote → booking → checkout; `PAYMENTS_NOT_CONFIGURED` state verified; with test keys, sandbox payment confirmed via verify | ⏳ |
 | 7 | Tourist account: profile, avatar upload, bookings, trips, favourites, own reviews, notifications | All `/account` routes; owner isolation visible as 404 states; E2E account journey | ⏳ |
 | 8 | Partner portal: application, organisation, team, verification, all supply editors, calendars, bookings approve/reject, dashboard/reports | All 58 Phase 8 operations wired; partner E2E (onboard → supply → approve booking) | ⏳ |
@@ -24,6 +24,59 @@ Backend status: [../../docs/IMPLEMENTATION_STATUS.md](../../docs/IMPLEMENTATION_
 | 10 | Hardening and handover: a11y and performance pass, security review, production compose + nginx edge routing to `web`, docs | Production stack smoke test; final checklist signed off | ⏳ |
 
 Operation counts per phase come from [API_MAPPING.md](API_MAPPING.md) and add up to all 242 contract operations.
+
+## Phase 4 — delivered (2026-10-17)
+
+- **Owner decisions:** extend the backend CMS instead of hardcoding sections (W37, backend B14); react-markdown for
+  rich text (WO3).
+- **Backend (B14):** 8 section types (`home_search`, `featured_stays`, `experience_grid`, `guide_spotlight`,
+  `package_showcase`, `image_text`, `statistics_strip`, `cultural_highlights`), migration `0017`, tests,
+  regenerated OpenAPI. See the backend IMPLEMENTATION_STATUS.
+- **A. Layout:** `(public)/layout.jsx` (dynamic, W38) with `SiteAnnouncement`, `PublicHeader` (`DesktopNavigation`,
+  `MobileNavigation`), `PublicFooter`; CMS menus `main`/`footer` with fallback to the site's sections (G5).
+- **B. CMS core:** `src/cms/` — generated type list, rendered-shape schemas, registry, `SectionRenderer`, `links`,
+  `Markdown`, `adapters/cms.adapter.js` (server-only, cached public reads).
+- **C/D. Sections:** all 16 (`HeroSection`, `HomeSearchSection`, `DestinationGridSection`, `CategoryGridSection`,
+  `DistrictExplorerSection`, `ImageGallerySection`, `FeaturedStaysSection`, `ExperienceGridSection`,
+  `GuideSpotlightSection`, `PackageShowcaseSection`, `CulturalHighlightsSection`, `ImageTextSection`,
+  `StatisticsStripSection`, `CTABannerSection`, `FAQSection`, `RichTextSection`) + feature cards for
+  destinations, stays, experiences, guides, packages, districts; `Money`, `ImageFrame`, `CardGrid`, `LinkCard`.
+- **E. Pages:** `/` (`features/home`: CMS homepage or content-free fallback), `/pages/[slug]`
+  (`DynamicPageRenderer`), metadata/Open Graph per page, `metadataBase`, `robots.txt`. The old placeholder
+  `app/page.jsx` was removed.
+- **Not in scope / deferred:** card and search links point to the Phase 5 listing/detail routes; sitemap (needs
+  those listings); CMS editor (Phase 9).
+
+### Phase 4 verification (executed 2026-10-17, Docker)
+
+- Backend: `db:migrate` 0017, rollback + re-apply ✅ · lint 0 ✅ · `npm test` **166/166** (adds all 8 new types
+  rendered with real published supply, suspended stay removed, invalid input refused) ✅
+- Frontend: lint 0 ✅ · `npm test` → **16 files, 232 tests, 232 pass** ✅ — adds: registry = backend types (no
+  missing/unused entry), fixture per type validates, unsafe/malformed data rejected (script and
+  protocol-relative links, `data:` images, bad enums, empty FAQ); renderer skips unknown types, prototype keys
+  and invalid data with a log; all 16 sections render with axe clean; empty live sections render nothing; cards
+  show API prices and honest fallbacks; statistics as entered; Markdown never renders HTML/script/data URLs/
+  images; menu link building and depth cap; desktop submenu keyboard + `aria-current`; mobile drawer; footer
+  columns; announcement link safety; adapter caching without per-request headers, 404 → fallback, malformed →
+  error, degraded menus/announcements; money/date formatting.
+- Production build ✅ (`/` and `/pages/[slug]` dynamic, `robots.txt` static); bundle check 60 files clean ✅
+- Playwright on the production build against the real backend → **24 passed** (Phase 1–3 suites + new public
+  suite: homepage one h1/header/footer/skip link and axe WCAG 2.2 AA; desktop nav with account actions; mobile
+  no horizontal scroll, drawer, Escape returns focus; CMS 404; robots) ✅
+- **Not run:** `cms.spec.js` (admin creates, publishes, renders and archives a landing page with live sections).
+  The dev database lost its admin account in the incident below; the owner is handling recovery. Run it with
+  `E2E_ADMIN_EMAIL`/`E2E_ADMIN_PASSWORD` once an admin exists.
+- Issues found and fixed: missing spaces in accessible names (external nav/Markdown links, category tiles);
+  build failures from build-time prerendering reading runtime config (robots, root metadata, homepage — the
+  layout's catch-all hid Next's dynamic signal; now only `BffError` is caught); `ImageFrame` aspect-ratio
+  conflicts (`fill` ratio added); a Vitest timeout under load (20 s).
+
+### Incident — dev database reset (2026-10-17)
+
+While verifying the backend change, a backend test file was run directly (`node --test …`) instead of
+`npm test`; it targeted the development database and truncated it (accounts incl. the bootstrap admin, demo
+data, audit history) and flushed dev Redis. Details, recovery options and the new guard in
+`backend/tests/helpers.js` are in the backend IMPLEMENTATION_STATUS. The owner chose to handle recovery.
 
 ## Phase 3 — delivered (2026-10-17)
 
@@ -229,7 +282,8 @@ CMS_CONTRACTS,PERMISSIONS_MATRIX,DECISIONS,IMPLEMENTATION_STATUS}.md`, `frontend
 
 ## Pending / needs owner input
 
-- Approve Phase 3 (decisions W32–W36).
+- Approve Phase 4 (decisions W37–W39, backend B14).
+- Recover the development database (incident 2026-10-17), then run `cms.spec.js` to close Phase 4 verification.
 - Before production (Phase 10): set `TRUSTED_PROXY_HOPS` for the edge topology; multiple `web` instances would
   need shared refresh coordination (WO7).
 - Logo artwork (WO5 otherwise resolved).

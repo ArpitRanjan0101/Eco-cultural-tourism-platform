@@ -338,7 +338,26 @@ design: [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) · runtime 
   ids required, unlisted ids 422, limit and item caps, HTML and protocol-relative links refused, unknown fields
   refused.
 
+## Incident — development database reset by a test run (2026-10-17)
+
+- **What happened:** during the B14 work a single test file was run directly
+  (`docker compose run --rm api node --test tests/api/cms-search.test.js`) instead of through `npm test`. Without
+  the script's environment it used the development `DATABASE_URL`/`REDIS_URL` and `NODE_ENV` was not `test`, so
+  the env guard (test runs refuse non-`_test` databases) did not apply. The suite's `resetData()` truncated users
+  and most mutable tables of the dev database `tourism` (09:32 UTC) and flushed Redis db 0. Lost from dev: all
+  accounts including the bootstrap super admin, demo destinations, audit history before 09:32, and any
+  partner/booking/CMS/media rows. Schema, migrations and reference geography were intact; the volume was not
+  touched; the `_test` database and backups were unaffected. Newest backup: `backups/tourism-20261015T123205Z.dump`.
+- **Recovery:** left to the owner (decision 2026-10-17). Options: `npm run db:seed` (idempotent; restores the
+  bootstrap admin and seed/demo data) after removing test leftovers, or restore the 15 Oct backup and re-apply
+  migration 0017.
+- **Fix:** `tests/helpers.js` now refuses to load unless the database name ends in `_test` and the Redis
+  database is not 0, regardless of `NODE_ENV`. Verified: the same direct command now stops with "Refusing to run
+  tests against database "tourism" / Redis db 0" and the dev database is unchanged; `npm test` → 166/166 pass.
+
 ## Pending / carried forward
+
+- Development database recovery after the 2026-10-17 incident (owner).
 
 - Open owner decisions O2, O6–O8 in DECISIONS.md.
 - Before launch: real TLS certificate, managed S3 buckets (versioning + CORS), SMTP provider, Razorpay live keys and

@@ -124,9 +124,28 @@ production unless `ENABLE_DESIGN_SYSTEM=true`, which only the e2e target sets �
 | `PermissionGate` | `user*`, `require*`, `mode`, `fallback` | presentation only (W13) | built |
 | `FormMessage` | `message`, `requestId` | form-level error with reference | built |
 
+## Public layout and display — Phase 4
+
+| Component | Props | Behaviour | Status |
+|-----------|-------|-----------|--------|
+| `PublicHeader` | `siteName*`, `navItems*`, `accountItems*` | skip link, wordmark, desktop nav ≥ `lg`, mobile drawer below; account actions | built |
+| `DesktopNavigation` | `items*`, `label` | links + disclosure submenus (Enter/Space, Escape returns focus, outside click), `aria-current` | built |
+| `MobileNavigation` | `items*`, `accountItems*`, `siteName*` | modal drawer with the full tree (depth 3) and account nav; closes on navigation | built |
+| `PublicFooter` | `siteName*`, `description*`, `items*`, `year` | CMS footer menu: titled columns + link group | built |
+| `SiteAnnouncement` | `announcements*` | active notices; only safe links | built |
+| `NavItemLink` (+ `isActivePath`) | `item*`, `current`, `onNavigate` | internal client links; external new tab + announced | built |
+| `Money` | `amount`, `currency`, `from`, `fallback` | formats API decimal strings (no floats); honest fallback text | built |
+| `ImageFrame` | `image`, `alt`, `ratio` (`video` `photo` `square` `portrait` `wide` `fill`), `sizes`, `priority` | API `Image`; neutral decorative surface when missing | built |
+| `CardGrid` | `items*`, `getKey*`, `renderItem*`, `columns` (2/3/4), `label` | responsive labelled list | built |
+| `LinkCard` | `href*`, `title*`, `headingLevel`, `media`, `eyebrow`, `footer` | whole card clickable via the title link (one tab stop) | built |
+| Feature cards: `DestinationCard`, `PropertyCard`, `ExperienceCard`, `GuideCard`, `PackageCard`, `DistrictCard` | one API card object each | in their features (`src/features/*`); API values only | built |
+| `HomePage`, `HomeFallback` (`features/home`) | `page` / `siteName`, `description`, `links` | CMS homepage composition; content-free fallback | built |
+| CMS section components (16) | rendered section data | see CMS_CONTRACTS.md §2 | built |
+| `Markdown` (`src/cms`) | `children*` (string) | restricted Markdown, React elements only | built |
+
+Formatting helpers: `lib/formatting/money.js` (`formatMoney`), `lib/formatting/dates.js` (`formatDate`,
+`formatInstant`, `formatDuration`).
+
 ## Planned for later phases
 
-`SiteHeader`, `SiteFooter`, `AnnouncementBar`, `MainNav`/`MobileNav`/`MenuTree` (Phase 4, CMS menus) ·
-`Money`, `DateText`, `Rating` (Phase 4–5) · supply cards `DestinationCard`, `PropertyCard`, `GuideCard`,
-`ExperienceCard`, `PackageCard` (feature components composing `BaseCard`, Phase 4–5) · `PartnerSwitcher`
-(blocked by gap G3) · CMS section components (CMS_CONTRACTS.md §2, Phase 4).
+`Rating`/`RatingSummary` (Phase 5, reviews) · `PartnerSwitcher` (blocked by gap G3) · CMS editor (Phase 9).

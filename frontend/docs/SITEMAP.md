@@ -10,6 +10,10 @@ Legend — **Gate:** `—` public · `anon` signed-out only · `S` session · `S
 [PERMISSIONS_MATRIX.md](PERMISSIONS_MATRIX.md)). **Render:** `R` server-rendered with revalidation (W9) ·
 `D` dynamic, `no-store` · `+C` with client islands.
 
+**Status (Phase 4):** `/` and `/pages/[slug]` are built (CMS-driven), inside the `(public)` layout with header,
+footer and announcements. The owner's Phase 4 spec moved explore/destinations/districts/search to Phase 5 with
+the supply pages; the "Phase" column below shows the original plan for those rows.
+
 ## 1. Public — `src/app/(public)/`
 
 | URL | File | Gate | Render | Confirmed operations | Phase |

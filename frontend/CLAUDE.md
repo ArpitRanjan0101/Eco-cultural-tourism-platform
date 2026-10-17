@@ -68,6 +68,9 @@ docker compose -f frontend/compose.dev.yml run --rm --no-deps web npm run lint
 docker compose -f frontend/compose.dev.yml run --rm --no-deps web npm test
 docker compose -f frontend/compose.dev.yml --profile e2e up -d --build web-e2e   # prod build as test target (W30)
 docker compose -f frontend/compose.dev.yml --profile e2e run --rm --build e2e    # browser tests incl. axe
+# CMS suite needs an existing admin, passed from the shell only (W39):
+#   $env:E2E_ADMIN_EMAIL='…'; $env:E2E_ADMIN_PASSWORD='…'; docker compose -f frontend/compose.dev.yml --profile e2e run --rm e2e
+# Backend tests: ONLY `docker compose run --rm api npm test` — never `node --test <file>` (it targets the dev DB).
 # Shared components: usage examples at http://127.0.0.1:3000/design-system (dev only); catalog in docs/COMPONENT_CATALOG.md
 docker build --target prod -t jharkhand-tourism-web:prod frontend        # prod image (fails on client-bundle leaks)
 

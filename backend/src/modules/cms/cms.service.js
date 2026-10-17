@@ -8,9 +8,43 @@ const { slugify } = require('../../core/utils/slug');
 const auditService = require('../audit/audit.service');
 const mediaService = require('../media/media.service');
 const destinationsService = require('../destinations/destinations.service');
+const experiencesService = require('../experiences/experiences.service');
 const geographyService = require('../geography/geography.service');
+const guidesService = require('../guides/guides.service');
+const packagesService = require('../packages/packages.service');
+const propertiesService = require('../properties/properties.service');
 const repository = require('./cms.repository');
-const { collectReferences } = require('./cms.sections');
+const { collectReferences, SUPPLY_REFERENCES } = require('./cms.sections');
+
+// B14: supply sections render live public cards through the owning module's service.
+const SUPPLY = {
+  featured_stays: { service: propertiesService, outputKey: 'properties', label: 'properties' },
+  experience_grid: { service: experiencesService, outputKey: 'experiences', label: 'experiences' },
+  guide_spotlight: { service: guidesService, outputKey: 'guides', label: 'guides' },
+  package_showcase: { service: packagesService, outputKey: 'packages', label: 'packages' },
+};
+
+/** Public cards for a supply section: newest listed, or the chosen ids in order (unlisted ones dropped). */
+async function supplyCards(sectionType, data) {
+  const { service } = SUPPLY[sectionType];
+  if (data.source === 'latest') return (await service.listPublic({ sort: '-createdAt', page: 1, limit: data.limit })).items;
+  const ids = data[SUPPLY_REFERENCES[sectionType]];
+  const cards = await service.getPublicCardsByIds(ids);
+  return ids.map((id) => cards.get(id)).filter(Boolean);
+}
+
+/** Manually chosen supply must be publicly listed when the page is saved (422 otherwise). */
+async function assertSupplyListed(refs) {
+  for (const [sectionType, { service, label }] of Object.entries(SUPPLY)) {
+    const ids = refs[SUPPLY_REFERENCES[sectionType]];
+    if (ids.length === 0) continue;
+    const found = await service.getPublicCardsByIds(ids);
+    const missing = ids.filter((id) => !found.has(id));
+    if (missing.length) {
+      throw ApiError.validation([{ location: 'body', path: 'sections', message: `Not publicly listed ${label}: ${missing.join(', ')}` }]);
+    }
+  }
+}
 
 // CMS JSON references media ids without a foreign key; block deleting media still in use.
 mediaService.registerReferenceCheck((db, mediaId) => repository.sectionsReferenceMedia(db, mediaId));
@@ -82,6 +116,28 @@ async function renderSections(rows) {
           break;
         case 'district_grid':
           rendered = { heading: data.heading, districts: await geographyService.listPublicDistricts({ region: data.regionSlug }) };
+          break;
+        case 'featured_stays':
+        case 'experience_grid':
+        case 'guide_spotlight':
+        case 'package_showcase':
+          rendered = { heading: data.heading, [SUPPLY[sectionType].outputKey]: await supplyCards(sectionType, data) };
+          break;
+        case 'home_search':
+          rendered = { heading: data.heading, subheading: data.subheading ?? null, placeholder: data.placeholder ?? null };
+          break;
+        case 'image_text':
+          rendered = { heading: data.heading, markdown: data.markdown, image: toImage(media.get(data.mediaId)), imagePosition: data.imagePosition, cta: data.cta ?? null };
+          break;
+        case 'statistics_strip':
+          rendered = { heading: data.heading ?? null, items: data.items };
+          break;
+        case 'cultural_highlights':
+          rendered = {
+            heading: data.heading,
+            intro: data.intro ?? null,
+            items: data.items.map((item) => ({ title: item.title, text: item.text, image: item.mediaId ? toImage(media.get(item.mediaId)) : null, cta: item.cta ?? null })),
+          };
           break;
         default:
           rendered = data; // rich_text, faq: already validated plain content
@@ -213,6 +269,7 @@ async function replaceSections(ctx, id, { sections }) {
     }
     await destinationsService.assertDestinationsExist(client, refs.destinationIds, 'sections');
     await destinationsService.assertCategoriesExist(client, refs.categoryIds, 'sections');
+    await assertSupplyListed(refs);
     const before = await repository.listSections(client, id);
     await repository.replaceSections(client, id, sections);
     return {

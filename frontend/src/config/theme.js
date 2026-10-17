@@ -1,0 +1,56 @@
+// JS mirror of the colour tokens in src/app/globals.css (for charts, meta theme-color, tests). Never edit one
+// without the other: src/tests/components/theme.test.js fails if they differ.
+export const colors = Object.freeze({
+  primary: '#1f5f43',
+  'primary-hover': '#174a34',
+  'primary-soft': '#e6f0ea',
+  'on-primary': '#ffffff',
+  accent: '#9a4f1e',
+  'accent-hover': '#7d3f17',
+  'accent-soft': '#f7ece3',
+  'on-accent': '#ffffff',
+  surface: '#faf8f3',
+  'surface-raised': '#ffffff',
+  'surface-muted': '#f1ede4',
+  text: '#1c2421',
+  muted: '#4b5751',
+  border: '#d9d4c7',
+  'border-strong': '#8a8578',
+  focus: '#1f5f43',
+  success: '#1a7f37',
+  'success-soft': '#ecfdf3',
+  warning: '#8a4b08',
+  'warning-soft': '#fffaeb',
+  danger: '#b42318',
+  'danger-hover': '#912018',
+  'danger-soft': '#fef3f2',
+  info: '#175cd3',
+  'info-soft': '#eff8ff',
+});
+
+// Pairs that render text (4.5:1) or essential UI boundaries (3:1), checked by the theme test (W21).
+export const contrastPairs = Object.freeze([
+  ['text', 'surface', 4.5],
+  ['text', 'surface-muted', 4.5],
+  ['muted', 'surface', 4.5],
+  ['muted', 'surface-raised', 4.5],
+  ['muted', 'surface-muted', 4.5],
+  ['primary', 'surface', 4.5],
+  ['primary', 'primary-soft', 4.5],
+  ['on-primary', 'primary', 4.5],
+  ['on-primary', 'primary-hover', 4.5],
+  ['accent', 'surface', 4.5],
+  ['accent', 'accent-soft', 4.5],
+  ['on-accent', 'accent', 4.5],
+  ['success', 'success-soft', 4.5],
+  ['warning', 'warning-soft', 4.5],
+  ['danger', 'danger-soft', 4.5],
+  ['danger', 'surface-raised', 4.5],
+  ['info', 'info-soft', 4.5],
+  ['on-primary', 'danger', 4.5],
+  ['border-strong', 'surface-raised', 3],
+  ['border-strong', 'surface', 3],
+  ['focus', 'surface', 3],
+]);
+
+export const breakpoints = Object.freeze({ sm: 640, md: 768, lg: 1024, xl: 1280 });

@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const { createApp } = require('../../src/app');
 const { pool } = require('../../src/config/database');
 const h = require('../helpers');
+const f = require('../fixtures');
 
 const app = createApp();
 const publicApi = h.api(app);
@@ -100,6 +101,67 @@ describe('CMS pages', () => {
 
     await admin.as.delete(`/admin/cms/pages/${page.id}`).expect(204);
     await publicApi.get('/content/homepage').expect(404);
+  });
+
+  it('renders the homepage sections added in B14 with live public supply only', async () => {
+    const admin = await actor(['admin']);
+    const { property } = await f.publishedRoom(app, admin);
+    const { experience } = await f.publishedSession(app, admin);
+    const { guide } = await f.publishedGuideService(app, admin);
+    const { pkg } = await f.publishedDeparture(app, admin);
+    const image = await h.uploadMedia(app, admin.token);
+
+    const page = (await admin.as.post('/admin/cms/pages').send({ title: 'Home', pageType: 'homepage' }).expect(201)).body.data;
+    await admin.as
+      .put(`/admin/cms/pages/${page.id}/sections`)
+      .send({
+        sections: [
+          { sectionType: 'home_search', data: { heading: 'Where to?', placeholder: 'Waterfalls, forests, festivals' } },
+          { sectionType: 'featured_stays', data: { heading: 'Stays', source: 'manual', propertyIds: [property.id] } },
+          { sectionType: 'experience_grid', data: { heading: 'Experiences', source: 'latest', limit: 3 } },
+          { sectionType: 'guide_spotlight', data: { heading: 'Guides', source: 'manual', guideIds: [guide.id] } },
+          { sectionType: 'package_showcase', data: { heading: 'Packages', source: 'latest' } },
+          { sectionType: 'image_text', data: { heading: 'Sohrai art', markdown: '**Wall paintings** at harvest', mediaId: image.media.id, imagePosition: 'end', cta: { label: 'Read more', href: '/pages/sohrai' } } },
+          { sectionType: 'statistics_strip', data: { items: [{ value: '24', label: 'Districts' }] } },
+          { sectionType: 'cultural_highlights', data: { heading: 'Living culture', items: [{ title: 'Chhau', text: 'Masked dance', mediaId: image.media.id }, { title: 'Sarhul', text: 'Spring festival' }] } },
+        ],
+      })
+      .expect(200);
+    await admin.as.patch(`/admin/cms/pages/${page.id}/status`).send({ status: 'published' }).expect(200);
+
+    const sections = (await publicApi.get('/content/homepage').expect(200)).body.data.sections;
+    const byType = Object.fromEntries(sections.map((s) => [s.type, s.data]));
+    assert.deepEqual(byType.home_search, { heading: 'Where to?', subheading: null, placeholder: 'Waterfalls, forests, festivals' });
+    assert.deepEqual(byType.featured_stays.properties.map((p) => p.id), [property.id]);
+    assert.deepEqual(byType.experience_grid.experiences.map((e) => e.id), [experience.id]);
+    assert.deepEqual(byType.guide_spotlight.guides.map((g) => g.id), [guide.id]);
+    assert.deepEqual(byType.package_showcase.packages.map((p) => p.id), [pkg.id]);
+    assert.equal(byType.image_text.image.url, image.media.url);
+    assert.equal(byType.image_text.imagePosition, 'end');
+    assert.deepEqual(byType.statistics_strip, { heading: null, items: [{ value: '24', label: 'Districts' }] });
+    assert.equal(byType.cultural_highlights.items[0].image.url, image.media.url);
+    assert.equal(byType.cultural_highlights.items[1].image, null);
+
+    // Supply that stops being public disappears from the rendered section.
+    await admin.as.patch(`/admin/properties/${property.id}/status`).send({ status: 'suspended', reason: 'Safety inspection' }).expect(200);
+    const after = (await publicApi.get('/content/homepage').expect(200)).body.data.sections;
+    assert.deepEqual(after.find((s) => s.type === 'featured_stays').data.properties, []);
+  });
+
+  it('rejects invalid B14 sections', async () => {
+    const admin = await actor(['admin']);
+    const page = (await admin.as.post('/admin/cms/pages').send({ title: 'Landing', pageType: 'landing' }).expect(201)).body.data;
+    const put = (sections) => admin.as.put(`/admin/cms/pages/${page.id}/sections`).send({ sections });
+    const unknown = '00000000-0000-4000-8000-000000000000';
+
+    await put([{ sectionType: 'featured_stays', data: { heading: 'Stays', source: 'manual' } }]).expect(422);
+    const unlisted = await put([{ sectionType: 'guide_spotlight', data: { heading: 'G', source: 'manual', guideIds: [unknown] } }]).expect(422);
+    assert.match(unlisted.body.error.details[0].message, /Not publicly listed guides/);
+    await put([{ sectionType: 'package_showcase', data: { heading: 'P', source: 'latest', limit: 13 } }]).expect(422);
+    await put([{ sectionType: 'statistics_strip', data: { items: Array.from({ length: 7 }, () => ({ value: '1', label: 'x' })) } }]).expect(422);
+    await put([{ sectionType: 'image_text', data: { heading: 'H', markdown: '<img src=x onerror=alert(1)>', mediaId: unknown } }]).expect(422);
+    await put([{ sectionType: 'cultural_highlights', data: { heading: 'H', items: [{ title: 't', text: 'x', cta: { label: 'Go', href: '//evil.example' } }] } }]).expect(422);
+    await put([{ sectionType: 'home_search', data: { heading: 'H', script: 'x' } }]).expect(422);
   });
 
   it('requires cms.publish to publish', async () => {

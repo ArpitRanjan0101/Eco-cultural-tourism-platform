@@ -1,0 +1,13 @@
+node_modules
+.next
+out
+coverage
+playwright-report
+test-results
+*.log
+.env
+.env.*
+docs
+Dockerfile
+compose.dev.yml
+.dockerignore

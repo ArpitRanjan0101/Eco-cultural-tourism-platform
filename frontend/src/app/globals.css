@@ -104,6 +104,33 @@
   }
 }
 
+/* Map markers and popups (components/maps): CSS-only divIcon, token colours, visible keyboard focus. */
+.jt-map-marker {
+  width: 22px;
+  height: 22px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: var(--color-primary);
+  border: 2px solid var(--color-surface-raised);
+  box-shadow: var(--shadow-md);
+}
+.jt-map-marker--highlight {
+  background: var(--color-accent);
+}
+.jt-map-marker:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+.jt-map-popup a {
+  font-weight: 600;
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+.jt-map-popup p {
+  margin: 0.25rem 0 0;
+  color: var(--color-muted);
+}
+
 @utility motif-divider {
   height: 6px;
   background-image: var(--motif-dots);

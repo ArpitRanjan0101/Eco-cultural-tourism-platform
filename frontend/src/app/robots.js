@@ -1,7 +1,12 @@
-// Private areas are never indexed (they also send noindex). The sitemap arrives with the listing pages (Phase 5).
-// Static: generated at build time, so it must not depend on runtime server configuration.
+import { getServerEnv } from '@/config/env.server';
+
+// Rendered on request: the sitemap must be an absolute URL, which needs runtime configuration (W38).
+export const dynamic = 'force-dynamic';
+
+// Private areas and search result permutations are never indexed (they also send noindex).
 export default function robots() {
   return {
-    rules: [{ userAgent: '*', allow: '/', disallow: ['/account', '/partner', '/admin', '/checkout', '/payments', '/api', '/design-system'] }],
+    rules: [{ userAgent: '*', allow: '/', disallow: ['/account', '/partner', '/admin', '/checkout', '/payments', '/api', '/design-system', '/search'] }],
+    sitemap: `${getServerEnv().APP_ORIGIN}/sitemap.xml`,
   };
 }

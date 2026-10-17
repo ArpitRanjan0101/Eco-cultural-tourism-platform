@@ -1,6 +1,6 @@
-// Compiles the routes under test once before any test runs, so first-request compile time in the dev server
-// does not count against individual test timeouts. Fails fast if the server never answers.
-const ROUTES = ['/api/health', '/', '/this-page-does-not-exist'];
+// Requests the routes under test once before any test runs (the dev server compiles on first request), so that
+// time does not count against individual test timeouts. Fails fast if the server never answers.
+const ROUTES = ['/api/health', '/', '/this-page-does-not-exist', '/design-system'];
 
 export default async function globalSetup(config) {
   const baseURL = config.projects[0].use.baseURL;

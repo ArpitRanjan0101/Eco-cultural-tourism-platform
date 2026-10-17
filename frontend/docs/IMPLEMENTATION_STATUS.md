@@ -12,8 +12,8 @@ Backend status: [../../docs/IMPLEMENTATION_STATUS.md](../../docs/IMPLEMENTATION_
 | Phase | Scope | Exit gate | Status |
 |-------|-------|-----------|--------|
 | 0 | Architecture, requirements and API contract audit (documentation only) | All Phase 0 documents exist; every planned page maps to confirmed operations; gaps recorded; WO1–WO10 answered or defaults accepted | ✅ Approved (2026-10-17, by starting Phase 1; WO1/WO2 defaults applied) |
-| 1 | Next.js scaffold, Docker (dev/prod/e2e targets, `compose.dev.yml`), env validation, Tailwind, ESLint, Vitest + Playwright foundation | Images build; dev server boots and renders; lint, unit and browser tests pass in Docker; no secret in client-visible output | ✅ Delivered (2026-10-17), **awaiting approval** |
-| 2 | Design tokens and shared components (ui, forms, feedback, layout, navigation, data-display), public site shell | Every catalogued Phase 2 component built with tests and axe checks; COMPONENT_CATALOG updated | ⏳ |
+| 1 | Next.js scaffold, Docker (dev/prod/e2e targets, `compose.dev.yml`), env validation, Tailwind, ESLint, Vitest + Playwright foundation | Images build; dev server boots and renders; lint, unit and browser tests pass in Docker; no secret in client-visible output | ✅ Approved (2026-10-17, by starting Phase 2) |
+| 2 | Design tokens and shared components, groups A–F (layout, actions, forms, navigation/overlays, data/feedback, rich components) | Every catalogued Phase 2 component built with usage example, documented props/variants, keyboard behaviour and tests; axe clean; lint/build/tests pass in Docker | ✅ Delivered (2026-10-17), **awaiting approval** |
 | 3 | BFF core: backend client, cookies, middleware refresh single-flight, CSRF, allowlisted forwarder (+ Node contract generator, W24), auth handlers; auth pages (register, verify, login, forgot/reset, logout) | BFF integration tests (token never in responses, CSRF refusal, header stripping, parallel refresh → one backend call); auth journey E2E against the dev stack | ⏳ |
 | 4 | Public discovery: CMS renderer, homepage, `/pages/[slug]`, destinations, districts, explore, search, SEO (metadata, sitemap, robots) | All public read routes used per API_MAPPING; CMS drafts not visible; unknown sections skipped; Lighthouse/axe checks recorded | ⏳ |
 | 5 | Supply browsing: stays, guides, experiences, packages (lists, detail, availability, reviews) | Detail pages show live availability from the API; empty/error states; E2E browse flows | ⏳ |
@@ -24,6 +24,44 @@ Backend status: [../../docs/IMPLEMENTATION_STATUS.md](../../docs/IMPLEMENTATION_
 | 10 | Hardening and handover: a11y and performance pass, security review, production compose + nginx edge routing to `web`, docs | Production stack smoke test; final checklist signed off | ⏳ |
 
 Operation counts per phase come from [API_MAPPING.md](API_MAPPING.md) and add up to all 242 contract operations.
+
+## Phase 2 — delivered (2026-10-17)
+
+- **Tokens (A):** semantic colour, type, radius, shadow, motion and motif tokens in `src/app/globals.css`, mirrored
+  in `src/config/theme.js`; Noto Sans / Noto Serif via `src/config/fonts.js` (`next/font`, self-hosted); variant
+  maps and `pickVariant` validation in `src/config/componentVariants.js`; `src/lib/cx.js`.
+- **Components (all listed in COMPONENT_CATALOG.md):** layout `Container`, `Section`, `PageHeader`,
+  `DashboardShell`; actions `Button`/`ButtonLink`, `IconButton`, `TextLink`; forms `FormField`, `Input`,
+  `Textarea`, `Select`, `Checkbox`, `RadioGroup`, `Switch`, `DatePicker`, `DateRangePicker`; navigation/overlays
+  `Tabs`, `Breadcrumbs`, `Pagination`, `DropdownMenu`, `Dialog`, `Drawer`, `Popover`, `Tooltip`; data/feedback
+  `BaseCard`, `Badge`, `StatusBadge`, `Avatar`, `StatCard`, `DataTable`, `FilterToolbar`, `Alert`,
+  `ToastProvider`/`useToast`, `Spinner`, `Skeleton`, `PageLoading`, `EmptyState`, `ErrorState`,
+  `ConfirmationDialog`; rich `Accordion`, `ImageGallery`, `Carousel`, `Timeline`; plus `VisuallyHidden`,
+  internal icons and `useDismiss`. No tourism logic, no UI library (W31). Toasts mounted in `AppProviders`.
+- **Usage examples:** `/design-system` (W30). **No public feature pages** were built.
+- **Changed from Phase 1:** root `app/loading.jsx` removed (W29); e2e now targets the production build
+  (`web-e2e` service, W30); `AppProviders` hosts the toast provider; root layout loads fonts and `themeColor`.
+- **Deferred by design:** maps (Phase 5, WO4), `FileUpload` (Phase 7, needs BFF), `MoneyInput`/`NumberStepper`
+  and domain cards (with their features).
+
+### Phase 2 verification (executed 2026-10-17, all in Docker)
+
+- `npm run lint` (`--max-warnings 0`) → 0 problems ✅
+- `npm test` → **9 files, 103 tests, 103 pass**: token mirror + 21 WCAG contrast pairs; variant validation
+  (throws in dev, falls back in production); every component's states, variants and ARIA wiring; keyboard models
+  (tabs roving focus, menu button, popover/tooltip Escape, dialog Tab wrap and focus return, switch Space);
+  axe-core on every group ✅
+- `docker build --target prod` → build OK, `/design-system` dynamic; bundle check: 39 client-visible files, no
+  server-only values or names ✅
+- Playwright on the production build → **10 passed**: full-page axe WCAG 2.2 AA incl. colour contrast; dialog
+  focus containment + Esc + focus return in real Chromium; open drawer axe-clean; menu and tabs keyboard;
+  confirmation starts on Cancel and shows a toast; 375 px viewport with no horizontal scroll and drawer
+  navigation; Phase 1 smoke tests ✅
+- Production gate: `/design-system` without `ENABLE_DESIGN_SYSTEM` → **404** ✅
+- Issues found and fixed during verification: external link accessible name lost its space; `aria-invalid` on
+  radios (lint); Chromium Tab escaping the modal to browser UI (added wrap); carousel dots below the 24 px target
+  size (axe `target-size`); e2e page crashes/timeouts against the dev server (W30); notFound() answering 200
+  under the root loading boundary (W29).
 
 ## Phase 1 — delivered (2026-10-17)
 
@@ -138,7 +176,8 @@ CMS_CONTRACTS,PERMISSIONS_MATRIX,DECISIONS,IMPLEMENTATION_STATUS}.md`, `frontend
 
 ## Pending / needs owner input
 
-- Approve Phase 1 (decisions W25–W28).
-- Answer or accept defaults for **WO3–WO10** (Markdown renderer, maps/tiles, brand
-  identity, languages, instance count, CMS redirects, `/admin/media`, multi-membership partners).
+- Approve Phase 2 (decisions W29–W31).
+- Logo artwork (WO5 otherwise resolved).
+- Answer or accept defaults for **WO3, WO4, WO6–WO10** (Markdown renderer, maps/tiles, languages, instance
+  count, CMS redirects, `/admin/media`, multi-membership partners).
 - Backend dependencies: O2 (live payments), O8 (redirects), G3 (memberships list) — none blocks Phases 1–7.

@@ -65,7 +65,9 @@ Copy-Item frontend\.env.example frontend\.env                            # then 
 docker compose -f frontend/compose.dev.yml up -d --build web             # dev server → http://127.0.0.1:3000
 docker compose -f frontend/compose.dev.yml run --rm --no-deps web npm run lint
 docker compose -f frontend/compose.dev.yml run --rm --no-deps web npm test
-docker compose -f frontend/compose.dev.yml --profile e2e run --rm e2e    # browser smoke tests (dev server running)
+docker compose -f frontend/compose.dev.yml --profile e2e up -d --build web-e2e   # prod build as test target (W30)
+docker compose -f frontend/compose.dev.yml --profile e2e run --rm --build e2e    # browser tests incl. axe
+# Shared components: usage examples at http://127.0.0.1:3000/design-system (dev only); catalog in docs/COMPONENT_CATALOG.md
 docker build --target prod -t jharkhand-tourism-web:prod frontend        # prod image (fails on client-bundle leaks)
 
 # After dependency changes: regenerate the lockfile with the image's pinned npm, then recreate the dev volumes

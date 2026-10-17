@@ -5,7 +5,8 @@
 #   docker compose -f frontend/compose.dev.yml up -d --build web
 #   docker compose -f frontend/compose.dev.yml run --rm web npm run lint
 #   docker compose -f frontend/compose.dev.yml run --rm web npm test
-#   docker compose -f frontend/compose.dev.yml --profile e2e run --rm e2e
+#   docker compose -f frontend/compose.dev.yml --profile e2e up -d --build web-e2e
+#   docker compose -f frontend/compose.dev.yml --profile e2e run --rm --build e2e
 name: jharkhand-tourism-web
 
 services:
@@ -39,20 +40,37 @@ services:
       start_period: 30s
     restart: unless-stopped
 
-  # Browser smoke tests against the running dev server (on demand only).
+  # Production build used as the browser-test target (on demand only): what users get, and stable under load.
+  web-e2e:
+    build:
+      context: .
+      target: prod
+    image: jharkhand-tourism-web:prod
+    profiles: [e2e]
+    env_file: .env
+    environment:
+      # Production rules apply (W19); this throwaway target has no cookies yet, so a placeholder https origin is fine.
+      APP_ORIGIN: https://web-e2e.test
+      SESSION_COOKIE_SECURE: "true"
+      ENABLE_DESIGN_SYSTEM: "true"
+    networks: [backend]
+
+  # Browser tests (Playwright) against web-e2e (on demand only).
   e2e:
     build:
       context: .
       target: e2e
     image: jharkhand-tourism-web:e2e
     profiles: [e2e]
+    # Chromium crashes ("Page crashed") with Docker's default 64 MB /dev/shm under parallel workers.
+    shm_size: 1gb
     environment:
-      E2E_BASE_URL: http://web:3000
+      E2E_BASE_URL: http://web-e2e:3000
     volumes:
       - ./playwright-report:/e2e/playwright-report
       - ./test-results:/e2e/test-results
     depends_on:
-      web: { condition: service_healthy }
+      web-e2e: { condition: service_healthy }
     networks: [backend]
 
 networks:

@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import ErrorBoundary from '@/app/error';
 import RootLayout, { metadata } from '@/app/layout';
-import Loading from '@/app/loading';
+import Loading from '@/components/feedback/PageLoading';
 import NotFound from '@/app/not-found';
 import HomePage from '@/app/page';
 import { site } from '@/config/site';
@@ -22,7 +22,7 @@ describe('app shell smoke', () => {
     expect(metadata.title.default).toBe(site.name);
   });
 
-  it('loading boundary announces a status to assistive technology', () => {
+  it('page loading fallback announces a status to assistive technology', () => {
     render(createElement(Loading));
     expect(screen.getByRole('status')).toHaveTextContent('Loading');
   });

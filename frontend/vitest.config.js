@@ -11,6 +11,8 @@ export default defineConfig({
       '@': src(''),
       // The real package throws outside the React server build; tests import server modules directly.
       'server-only': src('tests/stubs/server-only.js'),
+      // next/font only works inside the Next compiler.
+      'next/font/google': src('tests/stubs/next-font.js'),
     },
   },
   test: {

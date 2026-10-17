@@ -60,7 +60,7 @@ WORKDIR /e2e
 ENV NPM_CONFIG_UPDATE_NOTIFIER=false \
     NPM_CONFIG_FUND=false \
     NPM_CONFIG_AUDIT=false
-RUN --mount=type=cache,target=/root/.npm npm init -y > /dev/null && npm install --save-exact @playwright/test@1.63.0
+RUN --mount=type=cache,target=/root/.npm npm init -y > /dev/null && npm install --save-exact @playwright/test@1.63.0 @axe-core/playwright@4.13.0
 COPY playwright.config.js ./
 COPY src/tests/e2e ./src/tests/e2e
 CMD ["npx", "playwright", "test"]

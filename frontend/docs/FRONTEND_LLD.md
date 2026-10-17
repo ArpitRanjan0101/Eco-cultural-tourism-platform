@@ -5,7 +5,8 @@ session, CSRF, data fetching, forms, conventions and tests. Feature-specific sec
 in the phase that builds them. Architecture and rationale: [FRONTEND_HLD.md](FRONTEND_HLD.md),
 [DECISIONS.md](DECISIONS.md).
 
-Status: **design only (Phase 0).** File names below are the planned locations; none exist yet.
+Status: §1–§8 **implemented in Phases 1–3** (see "As built" in §5 for the final file names); `STORAGE_PUBLIC_ORIGIN`
+arrives with media in Phase 4–7.
 
 ## 1. Conventions
 
@@ -71,7 +72,8 @@ Validated with Zod when the server starts; failure exits naming keys only (W19).
 | `INTERNAL_SERVICE_TOKEN` | server, secret | Same value as the backend's; never logged |
 | `APP_ORIGIN` | server | Public origin of the site (`http://localhost:3000` in dev) for CSRF origin checks and absolute URLs; must equal backend `APP_WEB_URL` |
 | `SESSION_COOKIE_SECURE` | server | `true` in production (enables `Secure` + `__Host-` prefix) |
-| `TRUSTED_PROXY_HOPS` | server | How many forwarding hops to trust when deriving the client IP (W8) |
+| `TRUSTED_PROXY_HOPS` | server | How many forwarding hops to trust when deriving the client IP (W8, W32); default 1 |
+| `E2E_INSECURE_HTTP` | server | Test containers only: lets the production build run over http (W33) |
 | `BACKEND_TIMEOUT_MS` | server | Per-request timeout to Express (default 10000) |
 | `STORAGE_PUBLIC_ORIGIN` | server | Storage origin for CSP and `next/image` (`http://localhost:8333` in dev) |
 | `NEXT_PUBLIC_SITE_NAME` | public | Display name only. **No secrets in `NEXT_PUBLIC_*`.** |
@@ -135,18 +137,29 @@ an expiring token → exactly one backend refresh.
 |---------|-----------|
 | `api/auth/login/route.js` | CSRF + origin → backend `POST /auth/login` → set cookies → respond `{ success, data: { user } }` (tokens stripped) |
 | `api/auth/logout/route.js` | backend `POST /auth/logout` with refresh token → clear cookies → 204 (cookies cleared even if backend fails) |
-| `api/auth/logout-all/route.js` | backend `POST /auth/logout-all` (Bearer) → clear cookies → 204 |
-| `api/auth/session/route.js` | `GET` → backend `GET /auth/me` when a session exists, else `{ data: null }`; used by client providers |
-| `api/v1/[...path]/route.js` | allowlisted forwarder for every other contract operation (W5) |
+| `api/auth/logout-all/route.js` | backend `POST /auth/logout-all` (Bearer) → clear cookies on 204 or 401 → status passed through |
+| `api/auth/refresh/route.js` | explicit rotation through the same single-flight as the proxy; terminal failure clears cookies (W36) |
+| `api/session/route.js` | `GET` → backend `GET /auth/me` when a session exists, else `{ data: null }` (also on 401); used by `useSession` |
+| `api/v1/[...path]/route.js` | allowlisted forwarder for every other contract operation, including the non-session auth routes (W5, W34) |
 
-Forwarder steps: (1) match `(method, /api/v1/<path>)` against `allowlist.generated.js` → else 404
-`ROUTE_NOT_FOUND`; (2) for non-GET: origin + CSRF check (W7); (3) build headers per W8; (4) stream the request
-body through unchanged (JSON only; size limit equal to nginx private listener `2m`); (5) return backend status,
-body and `X-Request-Id`, plus `Idempotent-Replay` and `Retry-After` when present; nothing else is copied.
+Every handler is built with `createBffHandler` (`lib/bff/routeHandler.js`): request id, client IP, CSRF + origin
+check on unsafe methods **before** anything else, envelope errors, `Cache-Control: no-store`, `X-Request-Id`.
 
-`lib/bff/` modules: `cookies.js`, `csrf.js`, `clientIp.js`, `refresh.js` (single-flight), `allowlist.generated.js`,
-`forward.js`, `browserFetch.js` (the only client-side fetch helper: adds `X-CSRF-Token`, parses envelopes,
-throws `ApiError` with `code`/`details`/`requestId`).
+Forwarder steps: (1) reject empty, `.`/`..` or slash-containing segments; (2) rebuild the path from encoded
+segments and match `(method, path)` against `allowlist.generated.js` → else 404 `ROUTE_NOT_FOUND`; (3) read the
+body (JSON only → else 415; ≤ 2 MB, nginx private listener limit → else 413); (4) call Express with the service
+token, the cookie JWT, `X-Request-Id`, `X-Client-Ip` and only `Idempotency-Key` / `X-Partner-Id` from the browser
+(W8); (5) return the backend status and envelope plus `Retry-After` / `Idempotent-Replay`; backend cookies are
+never copied.
+
+**As built (Phase 3)** — `lib/bff/`: `backendClient.js` (server-only Express client: path guard, header allowlist,
+timeout, no retries), `errors.js` (`BffError`, envelopes), `requestContext.js` (request id, client IP),
+`cookies.js`, `session.js` (JWT expiry read for refresh timing only), `tokenRefresh.js` (single-flight),
+`csrf.js`, `routeHandler.js`, `allowlist.js` + `allowlist.generated.js`. `src/proxy.js` (Next 16 proxy,
+formerly middleware). `lib/auth/`: `getCurrentUser.js`, `requireSession.js`, `requirePermission.js`,
+`safeRedirect.js`. `lib/api/`: `client.js` (browser `apiFetch`/`api`, `ApiError`), `queryKeys.js`,
+`formErrors.js` (`applyApiErrors`). `lib/permissions/permissionGate.js`. `providers/QueryProvider.jsx`.
+The planned names `clientIp.js`, `refresh.js`, `forward.js`, `browserFetch.js` became the files above.
 
 ## 6. Data fetching (W9, W10)
 
@@ -177,6 +190,10 @@ The BFF answers in the backend envelope shape so the UI handles one format:
 | 403 | `CSRF_FAILED` | origin mismatch or missing/invalid CSRF token |
 | 404 | `ROUTE_NOT_FOUND` | operation not in the contract allowlist |
 | 413 | `PAYLOAD_TOO_LARGE` | body above the forwarding limit |
+| 415 | `UNSUPPORTED_MEDIA_TYPE` | a request body that is not JSON |
+| 401 | `AUTH_REQUIRED` | session route called without a session (`logout-all`, `refresh`) |
+| 500 | `INTERNAL_ERROR` | unexpected BFF failure (logged with the request id) |
+| 502 | `UPSTREAM_ERROR` | Express/nginx answered with a non-envelope error |
 | 502 | `UPSTREAM_UNAVAILABLE` | Express/nginx unreachable |
 | 504 | `UPSTREAM_TIMEOUT` | backend did not answer within `BACKEND_TIMEOUT_MS` |
 

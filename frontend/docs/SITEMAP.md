@@ -114,7 +114,8 @@ All pages: gate `S + perm`, render `D+C`. Exact operations per page: API_MAPPING
 
 | URL | File | Purpose | Phase |
 |-----|------|---------|-------|
-| `/api/auth/login`, `/logout`, `/logout-all`, `/session` | `api/auth/*/route.js` | Session handlers (W3, LLD §5) | 3 |
+| `/api/auth/login`, `/logout`, `/logout-all`, `/refresh` | `api/auth/*/route.js` | Session handlers (W3, W34, LLD §5) | 3 |
+| `/api/session` | `api/session/route.js` | Current user for client components | 3 |
 | `/api/v1/*` | `api/v1/[...path]/route.js` | Allowlisted forwarder (W5) | 3 |
 | `/api/health` | `api/health/route.js` | Container healthcheck of `web` itself (does not call the backend) | 1 |
 | `/bookings/:id` | `next.config.mjs` redirect | → `/account/bookings/:id` for backend email links (W18) | 3 |

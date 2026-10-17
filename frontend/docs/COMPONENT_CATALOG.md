@@ -96,6 +96,7 @@ production unless `ENABLE_DESIGN_SYSTEM=true`, which only the e2e target sets �
 | `Skeleton` | `shape` (`rect` `text` `circle`), `lines` | decorative | built |
 | `PageLoading` | `label` | Suspense fallback for page areas (W29) | built |
 | `EmptyState` | `title*`, `description`, `icon`, `action`, `headingLevel` | real empty results (W22) | built |
+| `ForbiddenState` | `title`, `description`, `homeHref`, `homeLabel` | signed in but not permitted (W13); page `h1` | built (Phase 3) |
 | `ErrorState` | `title`, `description`, `requestId`, `onRetry`, `retryLabel`, `headingLevel` | shows backend `requestId` | built |
 | `ConfirmationDialog` | `open*`, `title*`, `onConfirm*`, `onCancel*`, `description`, `confirmLabel`, `cancelLabel`, `tone` (`primary` `danger`), `loading` | focus starts on Cancel; dismissal blocked while loading | built |
 
@@ -108,6 +109,20 @@ production unless `ENABLE_DESIGN_SYSTEM=true`, which only the e2e target sets �
 | `Carousel` | `label*`, `items*`, `renderItem*`, `getItemKey*` | WAI-ARIA carousel; never auto-rotates; inactive slides inert; 24 px dot targets | built |
 | `Timeline` | `items*` `[{id,title,time?,dateTime?,description?,tone?}]` | ordered list with `<time datetime>` | built |
 | Maps (`LocationMap`, `NearbyMap`) | — | deferred to Phase 5 with location discovery (WO4) | planned |
+
+## Feature: auth — `src/features/auth` (Phase 3)
+
+| Component | Props | Behaviour | Status |
+|-----------|-------|-----------|--------|
+| `AuthCard` | `title*`, `description`, `footer`, `children*` | centred panel, page `h1` | built |
+| `LoginForm` | `next*` (validated path) | RHF + Zod; friendly codes (`INVALID_CREDENTIALS`, `LOGIN_LOCKED` + retry time, `ACCOUNT_SUSPENDED`); navigates to `next` | built |
+| `RegisterForm` | — | confirm-password check; shows the backend's neutral 202 message | built |
+| `ForgotPasswordForm` / `EmailRequestForm` | `action*`, `submitLabel*`, `defaultEmail` | single-email request, neutral 202 message | built |
+| `ResetPasswordForm` | `token` | malformed/expired link states; success says every session ended | built |
+| `EmailVerification` | `token` | POSTs once (Strict-Mode safe); failure offers a new link | built |
+| `SignOutButtons` | — | sign out; sign out everywhere behind `ConfirmationDialog` | built |
+| `PermissionGate` | `user*`, `require*`, `mode`, `fallback` | presentation only (W13) | built |
+| `FormMessage` | `message`, `requestId` | form-level error with reference | built |
 
 ## Planned for later phases
 

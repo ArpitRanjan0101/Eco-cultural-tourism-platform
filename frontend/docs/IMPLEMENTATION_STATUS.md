@@ -13,8 +13,8 @@ Backend status: [../../docs/IMPLEMENTATION_STATUS.md](../../docs/IMPLEMENTATION_
 |-------|-------|-----------|--------|
 | 0 | Architecture, requirements and API contract audit (documentation only) | All Phase 0 documents exist; every planned page maps to confirmed operations; gaps recorded; WO1–WO10 answered or defaults accepted | ✅ Approved (2026-10-17, by starting Phase 1; WO1/WO2 defaults applied) |
 | 1 | Next.js scaffold, Docker (dev/prod/e2e targets, `compose.dev.yml`), env validation, Tailwind, ESLint, Vitest + Playwright foundation | Images build; dev server boots and renders; lint, unit and browser tests pass in Docker; no secret in client-visible output | ✅ Approved (2026-10-17, by starting Phase 2) |
-| 2 | Design tokens and shared components, groups A–F (layout, actions, forms, navigation/overlays, data/feedback, rich components) | Every catalogued Phase 2 component built with usage example, documented props/variants, keyboard behaviour and tests; axe clean; lint/build/tests pass in Docker | ✅ Delivered (2026-10-17), **awaiting approval** |
-| 3 | BFF core: backend client, cookies, middleware refresh single-flight, CSRF, allowlisted forwarder (+ Node contract generator, W24), auth handlers; auth pages (register, verify, login, forgot/reset, logout) | BFF integration tests (token never in responses, CSRF refusal, header stripping, parallel refresh → one backend call); auth journey E2E against the dev stack | ⏳ |
+| 2 | Design tokens and shared components, groups A–F (layout, actions, forms, navigation/overlays, data/feedback, rich components) | Every catalogued Phase 2 component built with usage example, documented props/variants, keyboard behaviour and tests; axe clean; lint/build/tests pass in Docker | ✅ Approved (2026-10-17, by starting Phase 3) |
+| 3 | Secure BFF + JWT auth: backend client, cookies, proxy refresh single-flight, CSRF, allowlisted forwarder (+ Node contract generator, W24), session handlers, browser client + TanStack Query, auth pages, route guards, PermissionGate | BFF integration tests (token never in responses, CSRF refusal, header stripping, parallel refresh → one backend call); auth journey E2E against the real stack | ✅ Delivered (2026-10-17), **awaiting approval** |
 | 4 | Public discovery: CMS renderer, homepage, `/pages/[slug]`, destinations, districts, explore, search, SEO (metadata, sitemap, robots) | All public read routes used per API_MAPPING; CMS drafts not visible; unknown sections skipped; Lighthouse/axe checks recorded | ⏳ |
 | 5 | Supply browsing: stays, guides, experiences, packages (lists, detail, availability, reviews) | Detail pages show live availability from the API; empty/error states; E2E browse flows | ⏳ |
 | 6 | Booking and payments: quote, create (Idempotency-Key), checkout with Razorpay, verify, result, cancel | E2E quote → booking → checkout; `PAYMENTS_NOT_CONFIGURED` state verified; with test keys, sandbox payment confirmed via verify | ⏳ |
@@ -24,6 +24,59 @@ Backend status: [../../docs/IMPLEMENTATION_STATUS.md](../../docs/IMPLEMENTATION_
 | 10 | Hardening and handover: a11y and performance pass, security review, production compose + nginx edge routing to `web`, docs | Production stack smoke test; final checklist signed off | ⏳ |
 
 Operation counts per phase come from [API_MAPPING.md](API_MAPPING.md) and add up to all 242 contract operations.
+
+## Phase 3 — delivered (2026-10-17)
+
+| Step | Delivered as |
+|------|--------------|
+| 3.1 backendClient | `src/lib/bff/backendClient.js` (server-only; fixed base URL, path guard, no retries, 10 s timeout) |
+| 3.2 apiErrors | `src/lib/bff/errors.js` (`BffError`, envelopes); browser `ApiError` in `src/lib/api/client.js`; `applyApiErrors` in `src/lib/api/formErrors.js` |
+| 3.3 session | `src/lib/bff/session.js`, `cookies.js` (HttpOnly, SameSite=Lax, `__Host-` + Secure in production) |
+| 3.4 tokenRefresh | `src/lib/bff/tokenRefresh.js` + `src/proxy.js` (W36); `/api/auth/refresh` |
+| 3.5 csrf | `src/lib/bff/csrf.js` (Origin/Referer + double-submit, constant-time compare; cookie issued by the proxy) |
+| 3.6 routeHandler | `src/lib/bff/routeHandler.js`; generic forwarder `src/app/api/v1/[...path]/route.js` + generated allowlist (W5, W34) |
+| 3.7 apiClient | `src/lib/api/client.js` (`apiFetch`, `api`), `queryKeys.js` |
+| 3.8 QueryProvider | `src/providers/QueryProvider.jsx` (no 4xx retries), mounted in `AppProviders` |
+| 3.9–3.13 screens | `src/features/auth/components/{LoginForm,RegisterForm,ForgotPasswordForm,ResetPasswordForm,EmailVerification,EmailRequestForm,AuthCard,FormMessage,SignOutButtons}.jsx`; schemas, service, hooks; pages under `src/app/(auth)/` |
+| 3.14 PermissionGate | `src/features/auth/components/PermissionGate.jsx` + `src/lib/permissions/permissionGate.js` (`hasPermissions`, `ADMIN_AREA_PERMISSIONS`) |
+| 3.15 route guards | `src/lib/auth/{getCurrentUser,requireSession,requirePermission,safeRedirect}.js`; guarded layouts `(tourist)/account` and `(admin)/admin` with placeholder pages (real areas: Phases 7 and 9); `ForbiddenState` |
+| 3.16 tests | `src/tests/bff/{core,routes}.test.js`, `src/tests/auth/{auth-ui.test.jsx,guards.test.js}`, `src/tests/e2e/auth.spec.js` |
+
+- **Session handlers:** `POST /api/auth/login|logout|logout-all|refresh`, `GET /api/session`. Other auth
+  operations go through the forwarder (`/api/v1/auth/*`).
+- **Contract generator:** `scripts/generate-contract.mjs` (Node, Docker) replaces the PowerShell script; same 242
+  rows; 234 forwardable operations. `/bookings/:id` → `/account/bookings/:id` redirect added (W18).
+- **Dependencies:** `@tanstack/react-query` 5.104.1, `react-hook-form` 7.89.0, `@hookform/resolvers` 5.9.1.
+- **Config:** `TRUSTED_PROXY_HOPS`, `E2E_INSECURE_HTTP` (test target only, W33); `web-e2e` now runs with a real
+  http test origin and the e2e container reads Mailpit.
+- Decisions W32–W36. No backend file changed.
+
+### Phase 3 verification (executed 2026-10-17, all in Docker, against the real backend stack)
+
+- `npm run lint` → 0 problems ✅ · `npm test` → **13 files, 177 tests, 177 pass** ✅ — adds BFF and auth tests:
+  service token always sent, user JWT only from the cookie, spoofed `X-Internal-Service-Token`/`Authorization`/
+  `X-Client-Ip`/`Host` ignored, unsafe backend paths refused, timeout 504 / unreachable 502 without retries;
+  cookie names/flags/lifetimes; CSRF (foreign origin, no origin, missing/mismatched token); client IP by hops;
+  allowlist (234 ops, session/health/webhook excluded, dot segments and encoded slashes 404 without calling
+  Express); login strips tokens and sets cookies; logout clears even when Express is down; 415/413; **6 parallel
+  refreshes → 1 backend call**; terminal vs transient refresh failures; proxy refresh + request-cookie override +
+  inbound header stripping; server guards (redirect with safe `next`, 401 → anonymous, 503 surfaced); forms
+  (validation, 422 field mapping, lockout retry time, neutral register/forgot messages, single verify under
+  Strict Mode); PermissionGate.
+- Production build: bundle check **60 client-visible files, no server-only values or names** ✅
+- Playwright on the production build against nginx → Express → PostgreSQL/Redis/Mailpit → **20 passed** ✅:
+  register in the UI + **real verification email** link; anonymous `/account` → `/login?next=%2Faccount` → back
+  after sign-in; wrong password message, no cookie; HttpOnly/SameSite cookies, tokens absent from the login body,
+  page HTML, `document.cookie` and storage; access cookie deleted → 5 parallel calls all signed in, refresh token
+  rotated once, session still valid; **replayed rotated refresh token → session ended and the whole family
+  revoked** (backend reuse detection); tourist `/admin` → forbidden page and Express `403 FORBIDDEN`; anonymous
+  API 401 with `requestId`; CSRF rejections; sign out; sign out everywhere ends a second browser; Phase 1–2
+  suites ✅
+- Probe against the dev server: Redis rate-limit keys used the calling container's IP (W32); request ids match
+  between BFF and API logs ✅
+- Issues found and fixed: logout-all writing cookies to a detached response; Next.js replaying cleared cookies
+  without `Max-Age` (W35); e2e locator/test-order bugs (exact text, live-region ambiguity, refresh test leaving a
+  fresh access cookie); test helper overriding a deliberately wrong CSRF token.
 
 ## Phase 2 — delivered (2026-10-17)
 
@@ -176,7 +229,9 @@ CMS_CONTRACTS,PERMISSIONS_MATRIX,DECISIONS,IMPLEMENTATION_STATUS}.md`, `frontend
 
 ## Pending / needs owner input
 
-- Approve Phase 2 (decisions W29–W31).
+- Approve Phase 3 (decisions W32–W36).
+- Before production (Phase 10): set `TRUSTED_PROXY_HOPS` for the edge topology; multiple `web` instances would
+  need shared refresh coordination (WO7).
 - Logo artwork (WO5 otherwise resolved).
 - Answer or accept defaults for **WO3, WO4, WO6–WO10** (Markdown renderer, maps/tiles, languages, instance
   count, CMS redirects, `/admin/media`, multi-membership partners).

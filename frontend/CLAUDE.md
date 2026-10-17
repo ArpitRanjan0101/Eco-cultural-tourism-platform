@@ -55,7 +55,8 @@ unrelated functionality.
 - Fill missing integrations with fake success responses (for example payments without keys → show the
   backend's `PAYMENTS_NOT_CONFIGURED` state).
 - Advance phases without explicit approval.
-- Edit generated files by hand: `docs/API_MAPPING.md` (and from Phase 1 the BFF allowlist). Regenerate them.
+- Edit generated files by hand: `docs/API_MAPPING.md`, `src/lib/bff/allowlist.generated.js`. Regenerate them.
+- Call Express from anywhere but `src/lib/bff/backendClient.js`, or forward a path that is not in the allowlist.
 
 ## 6. Commands (repository root, Docker only)
 
@@ -81,9 +82,8 @@ Dev uses webpack with polling for hot reload on the Windows bind mount (W26). Ex
 ## 7. Generated artefacts
 
 ```powershell
-# Phase 0 interim generator (W24); replaced by a Docker-run Node script in Phase 3
-powershell -NoProfile -ExecutionPolicy Bypass -File frontend\scripts\gen-api-mapping.ps1 `
-  -Spec "$PWD\docs\api\openapi.json" -Out "$PWD\frontend\docs\API_MAPPING.md"
+# Writes docs/API_MAPPING.md AND src/lib/bff/allowlist.generated.js from ../docs/api/openapi.json (W5, W24)
+docker compose -f frontend/compose.dev.yml run --rm --no-deps web npm run contract:generate
 ```
 
 Regenerate whenever `../docs/api/openapi.json` changes. On Windows, edit text files with the Edit tool, not

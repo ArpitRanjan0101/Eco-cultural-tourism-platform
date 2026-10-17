@@ -1,8 +1,13 @@
 'use client';
 
 import { ToastProvider } from '@/components/feedback/Toast';
+import QueryProvider from './QueryProvider';
 
-// Single client boundary for app-wide providers (TanStack Query and session arrive in Phase 3).
+// Single client boundary for app-wide providers.
 export default function AppProviders({ children }) {
-  return <ToastProvider>{children}</ToastProvider>;
+  return (
+    <QueryProvider>
+      <ToastProvider>{children}</ToastProvider>
+    </QueryProvider>
+  );
 }

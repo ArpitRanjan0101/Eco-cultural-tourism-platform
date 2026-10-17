@@ -17,6 +17,14 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    // Test-only server configuration (no real secret; the backend is a fake, src/tests/bff/fakeBackend.js).
+    env: {
+      BACKEND_INTERNAL_URL: 'http://backend.test:8081',
+      INTERNAL_SERVICE_TOKEN: 'test-service-token-0123456789abcdef',
+      APP_ORIGIN: 'http://localhost:3000',
+      TRUSTED_PROXY_HOPS: '1',
+      SESSION_COOKIE_SECURE: 'false',
+    },
     setupFiles: ['./src/tests/setup.js'],
     include: ['src/**/*.test.{js,jsx}'],
     exclude: ['src/tests/e2e/**', 'node_modules/**'],

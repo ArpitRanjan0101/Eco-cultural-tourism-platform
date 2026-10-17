@@ -31,6 +31,8 @@ services:
       # After dependency changes: rebuild and recreate with `up -d --build -V web`.
       - /app/node_modules
       - /app/.next
+      # Backend contract, read by `npm run contract:generate` (W24).
+      - ../docs/api:/contract:ro
     networks: [backend]
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -49,11 +51,20 @@ services:
     profiles: [e2e]
     env_file: .env
     environment:
-      # Production rules apply (W19); this throwaway target has no cookies yet, so a placeholder https origin is fine.
-      APP_ORIGIN: https://web-e2e.test
-      SESSION_COOKIE_SECURE: "true"
+      # Plain-http test origin: the only place E2E_INSECURE_HTTP is set (W33). Real deployments use https and
+      # Secure __Host- cookies, enforced at startup.
+      APP_ORIGIN: http://web-e2e:3000
+      SESSION_COOKIE_SECURE: "false"
+      E2E_INSECURE_HTTP: "true"
       ENABLE_DESIGN_SYSTEM: "true"
+      # Browser → web-e2e directly: the peer appended by Next.js is the client (W32).
+      TRUSTED_PROXY_HOPS: "1"
     networks: [backend]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
   # Browser tests (Playwright) against web-e2e (on demand only).
   e2e:
@@ -66,6 +77,8 @@ services:
     shm_size: 1gb
     environment:
       E2E_BASE_URL: http://web-e2e:3000
+      # Real verification emails are read from Mailpit (no fake login).
+      MAILPIT_URL: http://mailpit:8025
     volumes:
       - ./playwright-report:/e2e/playwright-report
       - ./test-results:/e2e/test-results

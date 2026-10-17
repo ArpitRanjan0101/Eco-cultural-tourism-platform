@@ -10,6 +10,17 @@ const usersService = require('../src/modules/users/users.service');
 const settingsService = require('../src/modules/settings/settings.service');
 const { hashPassword } = require('../src/modules/auth/password');
 
+// Hard stop before anything can truncate or flush (2026-10-17 incident: a test file run directly with
+// `node --test`, outside `npm test`, reset the development database). Tests only ever touch a database whose
+// name ends in `_test` and a Redis database other than 0, whatever NODE_ENV says.
+(() => {
+  const dbName = new URL(process.env.DATABASE_URL ?? 'postgres://invalid/none').pathname.slice(1);
+  const redisDb = new URL(process.env.REDIS_URL ?? 'redis://invalid/0').pathname.slice(1) || '0';
+  if (!dbName.endsWith('_test') || redisDb === '0') {
+    throw new Error(`Refusing to run tests against database "${dbName}" / Redis db ${redisDb}. Run them with \`npm test\` (it selects the _test database and Redis db 1).`);
+  }
+})();
+
 const SERVICE_TOKEN = process.env.INTERNAL_SERVICE_TOKEN;
 const DEFAULT_PASSWORD = 'correct horse battery';
 

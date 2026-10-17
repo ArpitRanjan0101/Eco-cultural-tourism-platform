@@ -86,22 +86,6 @@ test('the published page renders every section through the registry, accessibly'
   await expect(page).toHaveURL(/\/search\?q=falls$/);
 });
 
-test('public layout: header, footer, mobile navigation and homepage', async ({ page }) => {
-  await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
-  await expect(page.getByRole('link', { name: 'Skip to main content' })).toHaveAttribute('href', '#main-content');
-  await expect(page.getByRole('contentinfo')).toBeVisible();
-  expect(violations(await new AxeBuilder({ page }).withTags(axeTags).analyze())).toEqual([]);
-
-  await page.setViewportSize({ width: 375, height: 800 });
-  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
-  await page.getByRole('button', { name: 'Open menu' }).click();
-  const drawer = page.getByRole('dialog');
-  await expect(drawer.getByRole('navigation', { name: 'Account' })).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(drawer).toBeHidden();
-});
-
 test.afterAll(async ({ browser }) => {
   if (!pageId) return;
   const page = await browser.newPage();

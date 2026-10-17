@@ -327,6 +327,17 @@ design: [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) · runtime 
   response schemas, all variables bound, no secrets); newman 6.2.1 against the dev stack: scenarios 51 requests /
   146 assertions / 0 failures twice; all GET routes 112 requests / 224 assertions / 0 failures.
 
+## Post-phase — CMS homepage section types (2026-10-17)
+
+- **Why:** frontend Phase 4 homepage; owner approved extending the CMS registry instead of hardcoding sections.
+- **Change:** 8 section types (B14) in `cms.sections.js` / `cms.service.js`; migration `0017_cms_section_types`;
+  no new routes (239 unchanged); OpenAPI regenerated (Postman unchanged).
+- **Verification:** `db:migrate` applied 0017; rollback + re-apply ✅ · lint 0 ✅ · `npm test` → **166 tests, 166
+  pass, 0 fail** ✅ — adds: all eight types rendered on a published homepage with real published stay /
+  experience / guide / package cards and resolved images; a suspended stay disappears from its section; manual
+  ids required, unlisted ids 422, limit and item caps, HTML and protocol-relative links refused, unknown fields
+  refused.
+
 ## Pending / carried forward
 
 - Open owner decisions O2, O6–O8 in DECISIONS.md.

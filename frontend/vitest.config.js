@@ -17,6 +17,8 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    // Full-page renders with axe take several seconds when the Docker VM also runs the backend stack.
+    testTimeout: 20_000,
     // Test-only server configuration (no real secret; the backend is a fake, src/tests/bff/fakeBackend.js).
     env: {
       BACKEND_INTERNAL_URL: 'http://backend.test:8081',

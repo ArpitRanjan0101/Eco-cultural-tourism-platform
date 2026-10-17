@@ -5,7 +5,19 @@ import { getAnnouncements, getMenu } from '@/cms/adapters/cms.adapter';
 import { toNavItems } from '@/cms/links';
 import { site } from '@/config/site';
 import { getCurrentUser } from '@/lib/auth/getCurrentUser';
+import { BffError } from '@/lib/bff/errors';
 import { ADMIN_AREA_PERMISSIONS, hasPermissions } from '@/lib/permissions/permissionGate';
+
+// Per-request: the header shows the signed-in user. Public CMS data is still fetch-cached (W9).
+export const dynamic = 'force-dynamic';
+
+// A backend outage while reading the session shows the signed-out header instead of an error page. Only
+// BffError is caught: anything else (including Next's own control-flow signals) must propagate.
+const currentUserOrNull = () =>
+  getCurrentUser().catch((error) => {
+    if (error instanceof BffError) return null;
+    throw error;
+  });
 
 function accountItems(user) {
   if (!user) {
@@ -32,7 +44,7 @@ export default async function PublicLayout({ children }) {
     getMenu(site.menus.header),
     getMenu(site.menus.footer),
     getAnnouncements(),
-    getCurrentUser().catch(() => null),
+    currentUserOrNull(),
   ]);
   return (
     <div className="flex min-h-dvh flex-col">

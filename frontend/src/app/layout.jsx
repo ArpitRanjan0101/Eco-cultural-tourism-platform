@@ -5,12 +5,14 @@ import { colors } from '@/config/theme';
 import AppProviders from '@/providers/AppProviders';
 import './globals.css';
 
-// metadataBase makes Open Graph and canonical URLs absolute (APP_ORIGIN is server configuration).
+// metadataBase makes Open Graph and canonical URLs absolute. Pages prerendered at build time have no runtime
+// configuration (secrets are never baked into the image), so they get no base; at runtime APP_ORIGIN is
+// always present because the server refuses to start without valid configuration (W19).
 export function generateMetadata() {
   return {
     title: { default: site.name, template: `%s | ${site.shortName}` },
     description: site.description,
-    metadataBase: new URL(getServerEnv().APP_ORIGIN),
+    ...(process.env.APP_ORIGIN ? { metadataBase: new URL(getServerEnv().APP_ORIGIN) } : {}),
   };
 }
 

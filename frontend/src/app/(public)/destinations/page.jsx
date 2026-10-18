@@ -1,4 +1,4 @@
-import ActiveFilterChips from '@/components/navigation/ActiveFilterChips';
+import ActiveFilterChips, { filterChips } from '@/components/navigation/ActiveFilterChips';
 import Container from '@/components/layout/Container';
 import PageHeader from '@/components/layout/PageHeader';
 import Breadcrumbs from '@/components/navigation/Breadcrumbs';
@@ -8,9 +8,9 @@ import MapView from '@/components/maps/MapView';
 import { toMapPlaces } from '@/components/maps/places';
 import { DestinationFilters, DestinationGrid, DestinationSort, parseDestinationQuery } from '@/features/destinations';
 import { listDestinations } from '@/features/destinations/server/destinations.server';
+import { geographyLabels } from '@/features/geography/adapters/geography.adapter';
 import { getCategories } from '@/features/geography/server/geography.server';
 import { getSearchFilters } from '@/features/search/server/search.server';
-import { hrefWith } from '@/lib/url/query';
 
 const PATH = '/destinations';
 
@@ -31,18 +31,14 @@ export default async function DestinationsPage({ searchParams }) {
   const { params, query } = parseDestinationQuery(await searchParams);
   const [result, filters, categories] = await Promise.all([listDestinations(query), getSearchFilters(), getCategories()]);
   const regions = filters?.regions ?? [];
-  const districtName = regions.flatMap((region) => region.districts).find((district) => district.slug === params.district)?.name;
-  const regionName = regions.find((region) => region.slug === params.region)?.name;
-  const categoryName = categories.find((category) => category.slug === params.category)?.name;
-  const chips = [
+  const labels = geographyLabels({ regions, categories });
+  const chips = filterChips(PATH, params, [
     params.q && { key: 'q', label: `“${params.q}”` },
-    params.district && { key: 'district', label: districtName ?? params.district },
-    params.region && { key: 'region', label: regionName ?? params.region },
-    params.category && { key: 'category', label: categoryName ?? params.category },
+    params.district && { key: 'district', label: labels.district(params.district) },
+    params.region && { key: 'region', label: labels.region(params.region) },
+    params.category && { key: 'category', label: labels.category(params.category) },
     params.featured && { key: 'featured', label: 'Featured' },
-  ]
-    .filter(Boolean)
-    .map((chip) => ({ ...chip, removeHref: hrefWith(PATH, params, { [chip.key]: null }) }));
+  ]);
   const places = toMapPlaces(result.data, { href: (item) => `${PATH}/${item.slug}`, subtitle: (item) => item.district?.name ?? null });
 
   return (

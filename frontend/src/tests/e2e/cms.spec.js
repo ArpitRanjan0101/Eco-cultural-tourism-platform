@@ -1,5 +1,5 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { axeViolations, signedInClient } from './helpers';
 
 // Real CMS content end to end: an admin creates a landing page through the BFF (contract-allowlisted admin
 // routes), the backend validates and publishes it, and the public site renders it. A landing page is used so the
@@ -13,22 +13,7 @@ const title = `E2E CMS ${stamp}`;
 const slug = `e2e-cms-${stamp}`;
 let pageId;
 
-const axeTags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
-const violations = (results) => results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`);
-
-async function adminRequest(page) {
-  await page.goto('/login');
-  const csrf = (await page.context().cookies()).find((c) => c.name === 'jt_csrf').value;
-  const headers = { origin: new URL(page.url()).origin, 'x-csrf-token': csrf };
-  const login = await page.request.post('/api/auth/login', { data: ADMIN, headers });
-  expect(login.status(), 'admin sign-in').toBe(200);
-  return {
-    post: (path, data) => page.request.post(path, { data, headers }),
-    put: (path, data) => page.request.put(path, { data, headers }),
-    patch: (path, data) => page.request.patch(path, { data, headers }),
-    delete: (path) => page.request.delete(path, { headers }),
-  };
-}
+const adminRequest = (page) => signedInClient(page, ADMIN);
 
 test.beforeAll(() => {
   if (!ADMIN.email || !ADMIN.password) throw new Error('Set E2E_ADMIN_EMAIL and E2E_ADMIN_PASSWORD to run the CMS suite');
@@ -79,7 +64,7 @@ test('the published page renders every section through the registry, accessibly'
   await question.click();
   await expect(page.getByText('Yes, from the CMS.')).toBeVisible();
 
-  expect(violations(await new AxeBuilder({ page }).withTags(axeTags).analyze())).toEqual([]);
+  expect(await axeViolations(page)).toEqual([]);
 
   await page.getByLabel('Search destinations, stays, guides and more').fill('falls');
   await page.getByRole('button', { name: 'Search', exact: true }).click();

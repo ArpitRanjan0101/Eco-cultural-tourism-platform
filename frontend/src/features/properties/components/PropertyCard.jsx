@@ -1,8 +1,8 @@
 import ImageFrame from '@/components/data-display/ImageFrame';
 import LinkCard from '@/components/data-display/LinkCard';
 import Money from '@/components/data-display/Money';
-import Badge from '@/components/ui/Badge';
 import { humanizeStatus } from '@/components/ui/StatusBadge';
+import BookingModeBadge from '@/features/supply/components/BookingModeBadge';
 
 /**
  * Card for an API PropertyCard. The price is the API's indicative starting price; availability and the real
@@ -22,7 +22,7 @@ export default function PropertyCard({ property, headingLevel = 3 }) {
       footer={
         <>
           <Money amount={property.startingPrice} currency={property.currency} from className="text-text" />
-          <Badge tone={property.bookingMode === 'instant' ? 'success' : 'info'}>{property.bookingMode === 'instant' ? 'Instant booking' : 'On request'}</Badge>
+          <BookingModeBadge mode={property.bookingMode} />
         </>
       }
     >

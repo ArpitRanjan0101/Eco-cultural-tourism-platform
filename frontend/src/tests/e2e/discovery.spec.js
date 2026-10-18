@@ -1,10 +1,8 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { axeViolations as violations } from './helpers';
 
 // Discovery against the real backend data (whatever is published), through the production build. Map tiles
 // are answered locally so test runs never load OpenStreetMap's public tile servers.
-const axeTags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
-const violations = async (page) => (await new AxeBuilder({ page }).withTags(axeTags).analyze()).violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`);
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
 
 let sample; // a published destination with coordinates, discovered via the API

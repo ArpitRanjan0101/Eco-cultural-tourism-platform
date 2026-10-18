@@ -1,10 +1,8 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { axeViolations } from './helpers';
 
 // Public chrome and homepage against the real backend, whatever CMS content currently exists (a published
 // homepage, or the content-free fallback while none is published, G5).
-const axeTags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
-const violations = (results) => results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`);
 
 test('homepage: one h1, header, footer, skip link, no WCAG 2.2 AA violations', async ({ page }) => {
   await page.goto('/');
@@ -12,7 +10,7 @@ test('homepage: one h1, header, footer, skip link, no WCAG 2.2 AA violations', a
   await expect(page.getByRole('banner')).toBeVisible();
   await expect(page.getByRole('contentinfo')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Skip to main content' })).toHaveAttribute('href', '#main-content');
-  expect(violations(await new AxeBuilder({ page }).withTags(axeTags).analyze())).toEqual([]);
+  expect(await axeViolations(page)).toEqual([]);
 });
 
 test('desktop navigation shows CMS or fallback sections with account actions', async ({ page }) => {

@@ -1,4 +1,4 @@
-import ActiveFilterChips from '@/components/navigation/ActiveFilterChips';
+import ActiveFilterChips, { filterChips } from '@/components/navigation/ActiveFilterChips';
 import Container from '@/components/layout/Container';
 import PageHeader from '@/components/layout/PageHeader';
 import Breadcrumbs from '@/components/navigation/Breadcrumbs';
@@ -14,6 +14,7 @@ import {
   SearchResultTabs,
   TYPE_LABELS,
 } from '@/features/search';
+import { geographyLabels } from '@/features/geography/adapters/geography.adapter';
 import { getSearchFilters, runSearch } from '@/features/search/server/search.server';
 import { hrefWith } from '@/lib/url/query';
 
@@ -28,17 +29,12 @@ export default async function SearchPage({ searchParams }) {
   const state = parseSearchQuery(await searchParams);
   const { params, query, filtered, maxPage } = state;
   const [filters, result] = await Promise.all([getSearchFilters(), query ? runSearch(query) : null]);
-  const regions = filters?.regions ?? [];
-  const districtName = regions.flatMap((region) => region.districts).find((district) => district.slug === params.district)?.name;
-  const regionName = regions.find((region) => region.slug === params.region)?.name;
-  const categoryName = filters?.categories.find((category) => category.slug === params.category)?.name;
-  const chips = [
-    params.region && { key: 'region', label: regionName ?? params.region },
-    params.district && { key: 'district', label: districtName ?? params.district },
-    params.category && { key: 'category', label: categoryName ?? params.category },
-  ]
-    .filter(Boolean)
-    .map((chip) => ({ ...chip, removeHref: hrefWith('/search', params, { [chip.key]: null }) }));
+  const labels = geographyLabels({ regions: filters?.regions, categories: filters?.categories });
+  const chips = filterChips('/search', params, [
+    params.region && { key: 'region', label: labels.region(params.region) },
+    params.district && { key: 'district', label: labels.district(params.district) },
+    params.category && { key: 'category', label: labels.category(params.category) },
+  ]);
   const clearHref = hrefWith('/search', { q: params.q, type: params.type });
   const activeCount = chips.length;
   const typeLabel = params.type ? TYPE_LABELS[params.type] : null;

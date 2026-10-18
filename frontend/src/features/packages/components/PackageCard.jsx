@@ -2,8 +2,10 @@ import ImageFrame from '@/components/data-display/ImageFrame';
 import LinkCard from '@/components/data-display/LinkCard';
 import Money from '@/components/data-display/Money';
 import { formatDate } from '@/lib/formatting/dates';
+import { plural } from '@/lib/formatting/plural';
 
-const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
+/** "2 days · 1 night" from the API durations. */
+export const packageDuration = (pkg) => `${plural(pkg.durationDays, 'day')} · ${plural(pkg.durationNights, 'night')}`;
 
 /**
  * Card for an API PackageCard.
@@ -18,7 +20,7 @@ export default function PackageCard({ pkg, headingLevel = 3 }) {
       href={`/packages/${pkg.slug}`}
       title={pkg.name}
       headingLevel={headingLevel}
-      eyebrow={`${plural(pkg.durationDays, 'day')} · ${plural(pkg.durationNights, 'night')}`}
+      eyebrow={packageDuration(pkg)}
       media={<ImageFrame image={pkg.coverImage} alt="" />}
       footer={<Money amount={pkg.startingPrice} currency={pkg.currency} from fallback="No upcoming departures" className="text-text" />}
     >

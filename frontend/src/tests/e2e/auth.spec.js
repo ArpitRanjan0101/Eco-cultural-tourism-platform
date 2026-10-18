@@ -1,26 +1,13 @@
 import { expect, test } from '@playwright/test';
+import { verificationToken } from './helpers';
 
 // End-to-end against the real stack: production build → nginx → Express → PostgreSQL/Redis, with the real
 // verification email read from Mailpit. No fake login. One registration per run (backend limit: 10/hour per IP).
 test.describe.configure({ mode: 'serial' });
 
-const MAILPIT = process.env.MAILPIT_URL ?? 'http://mailpit:8025';
 const stamp = Date.now();
 const user = { fullName: 'E2E Traveller', email: `e2e.${stamp}@example.org`, password: `Pw-${stamp}-ok` };
-
-async function verificationLink(email) {
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    const search = await (await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}`)).json();
-    const id = search.messages?.[0]?.ID;
-    if (id) {
-      const message = await (await fetch(`${MAILPIT}/api/v1/message/${id}`)).json();
-      const match = `${message.Text}\n${message.HTML}`.match(/\/verify-email\?token=([^\s"'<&]+)/);
-      if (match) return `/verify-email?token=${match[1]}`;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-  throw new Error(`no verification email for ${email}`);
-}
+const verificationLink = async (email) => `/verify-email?token=${await verificationToken(email)}`;
 
 const cookieMap = async (context) => Object.fromEntries((await context.cookies()).map((c) => [c.name, c]));
 

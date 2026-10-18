@@ -46,9 +46,9 @@ async function DestinationSurroundings({ destination }) {
   return (
     <>
       <NearbyDestinations destination={destination} nearby={nearby.data} radiusKm={NEARBY_RADIUS_KM} />
-      <DestinationSupply sectionId="stays" kind="properties" items={properties.data} total={properties.meta.total} />
-      <DestinationSupply sectionId="experiences" kind="experiences" items={experiences.data} total={experiences.meta.total} />
-      <DestinationSupply sectionId="guides" kind="guides" items={guides.data} total={guides.meta.total} />
+      <DestinationSupply sectionId="stays" kind="properties" items={properties.data} total={properties.meta.total} destination={destination} />
+      <DestinationSupply sectionId="experiences" kind="experiences" items={experiences.data} total={experiences.meta.total} destination={destination} />
+      <DestinationSupply sectionId="guides" kind="guides" items={guides.data} total={guides.meta.total} destination={destination} />
       <DestinationReviews reviews={reviews.data} rating={reviews.meta.rating} total={reviews.meta.total} />
     </>
   );

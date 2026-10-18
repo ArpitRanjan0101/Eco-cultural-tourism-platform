@@ -158,7 +158,32 @@ Formatting helpers: `lib/formatting/money.js` (`formatMoney`), `lib/formatting/d
 | `SortSelector`, `ActiveFilterChips`, `ResultsPagination` | `components/navigation` | sort GET form (auto-submit, keeps filters), removable chips + clear all, filter-preserving pagination with optional page cap | built |
 | `Stars`, `RatingSummary` | `components/data-display/Rating.jsx` | API rating summary; "No reviews yet" instead of any default score | built |
 
+## Supply browsing — Phase 5b
+
+| Component | Where | Props / behaviour | Status |
+|-----------|-------|-------------------|--------|
+| `SupplyListing` | `features/supply` | `title*`, `description*`, `pathname*`, `params*`, `meta*`, `noun*` `[singular, plural]`, `filters`, `sort`, `chips`, `children` — list page layout: one `h1`, live count, chips, filter-preserving pagination | built |
+| `SupplyFilters` | `features/supply` | `label*`, `action*`, `values*`, `searchLabel`, `selects` `[{name,label,placeholder,options}]`, `keep` (default `sort`, `destination`) — GET form; URL-only filters travel as hidden fields | built |
+| `SupplyResults` | `features/supply` | `items*`, `renderItem*`, `label*`, `noun*`, `filtered*`, `clearHref*`, `columns` — cards or an empty state that says whether filters hide results | built |
+| `SupplyHero` | `features/supply` | `breadcrumbs*`, `title*`, `eyebrow`, `summary`, `badges`, `image`, `imageRatio` (`photo` `square`) — detail header with the page `h1` | built |
+| `AtAGlance` | `features/supply` | `facts*` `[{label,value}]`, `title`, `children` — key-fact panel; empty values left out | built |
+| `BookingModeBadge` | `features/supply` | `mode*` (`instant` `request`), `size` | built |
+| `SeatList` (+ `seatStatus`) | `features/supply` | `label*`, `options*` (API session/departure + `when` node) — per-person price and seat status from API flags only | built |
+| `LiveAvailability`, `AvailabilityResult` (+ `availabilityErrorText`), `useAvailability` | `features/supply` | section shell with the "confirmed again when you book" note; query states (spinner, explained 422/404/429, busy while refreshing); TanStack hook keyed per feature (W45) | built |
+| `StayAvailability` | `features/properties` | `propertyId*`, `today*` — dates/guests/rooms form → live rooms with API totals, nightly table, occupancy and availability states | built |
+| `RoomTypes`, `AmenityList`, `PropertyPolicies` (+ `cancellationTierText`), `StayFacts` | `features/properties` | active room types with base price per night; amenities by API category; cancellation tiers, child/house/ID rules; facts with tel/OSM links | built |
+| `GuideAvailability` (+ `groupSlots`), `GuideServices`, `GuideFacts` | `features/guides` | date window (≤ 92 days) → open/blocked time windows by day; active services priced per group; profile facts | built |
+| `ExperienceSessions`, `ExperienceFacts` | `features/experiences` | party size + start date → sessions in a 30-day window with per-person price and seats; group-limit warning | built |
+| `PackageDepartures`, `PackageItinerary`, `PackageInclusions`, `PackageFacts` | `features/packages` | travellers → departures with seats; day-by-day itinerary with destination links; included / not included | built |
+| `ReviewsSection` | `features/reviews` | `title*`, `reviews*`, `rating`, `total*` — shared by destination and supply pages (`getReviews` in `reviews.server.js`) | built |
+| `AboutSection`, `GallerySection`, `PlainText` | `components/data-display` | plain API text as paragraphs under an `h2`; photo gallery section; shared with destination pages | built |
+
+Helpers: `lib/url/listQuery.js` (`parseListQuery`, `slugParam`, `pageParam`, `textParam`, `labelledOptions`),
+`lib/bff/catalogue.js` (`catalogueList`, `catalogueItem`, `catalogueOptions`), `filterChips`
+(`components/navigation/ActiveFilterChips`), `lib/formatting/plural.js`, `lib/formatting/dates.js`
+(`todayInKolkata`, `addDays`, `daysBetween`, `formatTime`).
+
 ## Planned for later phases
 
-`PartnerSwitcher` (blocked by gap G3) · CMS editor (Phase 9) · stay/guide/experience/package listing and detail
-pages (cards already link to them).
+`PartnerSwitcher` (blocked by gap G3) · CMS editor (Phase 9) · booking widgets on the supply detail pages
+(Phase 6).

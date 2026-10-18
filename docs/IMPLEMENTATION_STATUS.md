@@ -351,13 +351,16 @@ design: [architecture/ARCHITECTURE.md](architecture/ARCHITECTURE.md) · runtime 
 - **Recovery:** left to the owner (decision 2026-10-17). Options: `npm run db:seed` (idempotent; restores the
   bootstrap admin and seed/demo data) after removing test leftovers, or restore the 15 Oct backup and re-apply
   migration 0017.
+- **Recovered (2026-10-18, owner request):** the four test fixture destinations (`hundru-falls`, `dassam-falls`,
+  `ranchi-lake`, `draft-falls`; no dependent supply) were deleted in one transaction, then `npm run db:seed` ran
+  all five seeds: bootstrap super admin restored, eight demo destinations re-created. Pre-incident audit history
+  and partner/booking/CMS/media rows are not re-creatable from seeds (the 15 Oct backup remains available).
 - **Fix:** `tests/helpers.js` now refuses to load unless the database name ends in `_test` and the Redis
   database is not 0, regardless of `NODE_ENV`. Verified: the same direct command now stops with "Refusing to run
   tests against database "tourism" / Redis db 0" and the dev database is unchanged; `npm test` → 166/166 pass.
 
 ## Pending / carried forward
 
-- Development database recovery after the 2026-10-17 incident (owner).
 
 - Open owner decisions O2, O6–O8 in DECISIONS.md.
 - Before launch: real TLS certificate, managed S3 buckets (versioning + CORS), SMTP provider, Razorpay live keys and

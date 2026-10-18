@@ -10,10 +10,12 @@ Legend — **Gate:** `—` public · `anon` signed-out only · `S` session · `S
 [PERMISSIONS_MATRIX.md](PERMISSIONS_MATRIX.md)). **Render:** `R` server-rendered with revalidation (W9) ·
 `D` dynamic, `no-store` · `+C` with client islands.
 
-**Status (Phase 5):** built — `/`, `/pages/[slug]` (Phase 4); `/explore`, `/destinations`, `/destinations/[slug]`,
-`/districts`, `/districts/[slug]`, `/search`, `/sitemap.xml`, `/robots.txt` (Phase 5). Not yet built: `/stays`,
-`/guides`, `/experiences`, `/packages` and their detail pages (cards already link to them). The "Phase" column
-below shows the original plan.
+**Status (Phase 5b):** built — `/`, `/pages/[slug]` (Phase 4); `/explore`, `/destinations`, `/destinations/[slug]`,
+`/districts`, `/districts/[slug]`, `/search`, `/sitemap.xml`, `/robots.txt` (Phase 5); `/stays`, `/stays/[slug]`,
+`/guides`, `/guides/[id]`, `/experiences`, `/experiences/[slug]`, `/packages`, `/packages/[slug]` (Phase 5b). The
+"Phase" column below shows the original plan. Phase 5b reads rooms, services, sessions and departures from the
+detail DTOs and does not call `/properties/{id}/rooms`, `/guides/{id}/services`, `/experiences/{id}/sessions`,
+`/packages/{id}/departures` or `/amenities` (W45).
 
 ## 1. Public — `src/app/(public)/`
 

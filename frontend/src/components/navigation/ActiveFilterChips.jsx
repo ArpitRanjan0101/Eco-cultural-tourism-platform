@@ -1,5 +1,15 @@
 import Link from 'next/link';
 import { CloseIcon } from '@/components/ui/icons';
+import { hrefWith } from '@/lib/url/query';
+
+/**
+ * Chips for the filters that are set: `[{ key, label }]` (falsy entries skipped) → chips whose links drop that
+ * one filter and keep the rest.
+ * @param {string} pathname @param {Record<string,string>} params @param {Array<{ key: string, label: string }|false|null|undefined>} entries
+ */
+export function filterChips(pathname, params, entries) {
+  return entries.filter(Boolean).map((chip) => ({ ...chip, removeHref: hrefWith(pathname, params, { [chip.key]: null }) }));
+}
 
 /**
  * Applied filters as removable chips (each a link to the same list without that filter) plus "Clear all".

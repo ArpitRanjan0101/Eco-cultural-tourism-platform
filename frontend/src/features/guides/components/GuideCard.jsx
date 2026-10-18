@@ -1,6 +1,10 @@
 import ImageFrame from '@/components/data-display/ImageFrame';
 import LinkCard from '@/components/data-display/LinkCard';
 import Money from '@/components/data-display/Money';
+import { plural } from '@/lib/formatting/plural';
+
+/** API yearsExperience → "5 years guiding" (0 → "Local guide"). */
+export const guideExperience = (years) => (years > 0 ? `${plural(years, 'year')} guiding` : 'Local guide');
 
 /**
  * Card for an API GuideCard (public guides are verified by the backend, D6).
@@ -9,13 +13,12 @@ import Money from '@/components/data-display/Money';
  *   destinations: Array<{ id: string, name: string }> }, headingLevel?: 2|3|4 }} props
  */
 export default function GuideCard({ guide, headingLevel = 3 }) {
-  const years = guide.yearsExperience;
   return (
     <LinkCard
       href={`/guides/${guide.id}`}
       title={guide.displayName}
       headingLevel={headingLevel}
-      eyebrow={years > 0 ? `${years} ${years === 1 ? 'year' : 'years'} guiding` : 'Local guide'}
+      eyebrow={guideExperience(guide.yearsExperience)}
       media={<ImageFrame image={guide.photo} alt="" ratio="square" />}
       footer={<Money amount={guide.startingPrice} currency={guide.currency} from className="text-text" />}
     >

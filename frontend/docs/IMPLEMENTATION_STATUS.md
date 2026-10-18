@@ -15,9 +15,9 @@ Backend status: [../../docs/IMPLEMENTATION_STATUS.md](../../docs/IMPLEMENTATION_
 | 1 | Next.js scaffold, Docker (dev/prod/e2e targets, `compose.dev.yml`), env validation, Tailwind, ESLint, Vitest + Playwright foundation | Images build; dev server boots and renders; lint, unit and browser tests pass in Docker; no secret in client-visible output | ✅ Approved (2026-10-17, by starting Phase 2) |
 | 2 | Design tokens and shared components, groups A–F (layout, actions, forms, navigation/overlays, data/feedback, rich components) | Every catalogued Phase 2 component built with usage example, documented props/variants, keyboard behaviour and tests; axe clean; lint/build/tests pass in Docker | ✅ Approved (2026-10-17, by starting Phase 3) |
 | 3 | Secure BFF + JWT auth: backend client, cookies, proxy refresh single-flight, CSRF, allowlisted forwarder (+ Node contract generator, W24), session handlers, browser client + TanStack Query, auth pages, route guards, PermissionGate | BFF integration tests (token never in responses, CSRF refusal, header stripping, parallel refresh → one backend call); auth journey E2E against the real stack | ✅ Approved (2026-10-17, by starting Phase 4) |
-| 4 | Public layout, CMS renderer and dynamic homepage (redefined by the owner's Phase 4 spec): header/navigation/footer/announcements, 16-section registry (+ backend B14), homepage, `/pages/[slug]`, SEO metadata, robots | Every section validated and rendered from real CMS data; drafts private; unsafe content never rendered; axe clean; tests in Docker | ✅ Delivered (2026-10-17), **awaiting approval** — CMS e2e blocked by the dev DB incident (see below) |
-| 5 | Geography, destinations, search and maps (owner's Phase 5 spec): regions/districts, destination list/detail, unified search + autocomplete, Leaflet/OSM maps, explore + near me, SEO | URL-driven filters per contract; real data only; maps lazy and coordinate-honest; tests in Docker | ✅ Delivered (2026-10-17), **awaiting approval** |
-| 5b | Supply browsing: stays, guides, experiences, packages (lists, detail, availability, reviews) — cards already link to these routes | Detail pages show live availability from the API; empty/error states; E2E browse flows | ⏳ |
+| 4 | Public layout, CMS renderer and dynamic homepage (redefined by the owner's Phase 4 spec): header/navigation/footer/announcements, 16-section registry (+ backend B14), homepage, `/pages/[slug]`, SEO metadata, robots | Every section validated and rendered from real CMS data; drafts private; unsafe content never rendered; axe clean; tests in Docker | ✅ Approved (2026-10-18, owner) — `cms.spec.js` run and passed after the dev DB recovery |
+| 5 | Geography, destinations, search and maps (owner's Phase 5 spec): regions/districts, destination list/detail, unified search + autocomplete, Leaflet/OSM maps, explore + near me, SEO | URL-driven filters per contract; real data only; maps lazy and coordinate-honest; tests in Docker | ✅ Approved (2026-10-18, owner) |
+| 5b | Supply browsing: stays, guides, experiences, packages (lists, detail, availability, reviews) — cards already link to these routes | Detail pages show live availability from the API; empty/error states; E2E browse flows | ✅ Delivered (2026-10-18), **awaiting approval** |
 | 6 | Booking and payments: quote, create (Idempotency-Key), checkout with Razorpay, verify, result, cancel | E2E quote → booking → checkout; `PAYMENTS_NOT_CONFIGURED` state verified; with test keys, sandbox payment confirmed via verify | ⏳ |
 | 7 | Tourist account: profile, avatar upload, bookings, trips, favourites, own reviews, notifications | All `/account` routes; owner isolation visible as 404 states; E2E account journey | ⏳ |
 | 8 | Partner portal: application, organisation, team, verification, all supply editors, calendars, bookings approve/reject, dashboard/reports | All 58 Phase 8 operations wired; partner E2E (onboard → supply → approve booking) | ⏳ |
@@ -25,6 +25,78 @@ Backend status: [../../docs/IMPLEMENTATION_STATUS.md](../../docs/IMPLEMENTATION_
 | 10 | Hardening and handover: a11y and performance pass, security review, production compose + nginx edge routing to `web`, docs | Production stack smoke test; final checklist signed off | ⏳ |
 
 Operation counts per phase come from [API_MAPPING.md](API_MAPPING.md) and add up to all 242 contract operations.
+
+## Phase 5b — delivered (2026-10-18)
+
+- **Pages:** `/stays` (search, district, type of stay, destination via URL; API sorts; list/map; pagination),
+  `/stays/[slug]` (hero, about, facts, live availability, rooms, amenities, policies, gallery, location map,
+  reviews), `/guides` (search, language, destination; sorts), `/guides/[id]` (profile, facts, services, open
+  dates, reviews), `/experiences` and `/experiences/[slug]` (facts, sessions with seats for a party size, gallery,
+  reviews), `/packages` and `/packages/[slug]` (facts, itinerary, inclusions, departures with seats, gallery,
+  reviews). Filtered lists are `noindex`; detail pages have canonical URLs and Open Graph images; the sitemap now
+  lists the four sections and every published stay, guide, experience and package.
+- **Modules (W44):** `features/supply` (shared presentational layer + `useAvailability`), per-type `schemas/`,
+  `server/`, `services/` and components in `features/{properties,guides,experiences,packages}`,
+  `features/reviews/server/reviews.server.js` + `ReviewsSection`; helpers `lib/url/listQuery.js`,
+  `lib/bff/catalogue.js`, `lib/formatting/plural.js`, date helpers in `lib/formatting/dates.js`;
+  `components/data-display/{AboutSection,GallerySection,PlainText}`; `filterChips`.
+- **De-duplication of Phase 5 code (no behaviour change, all Phase 5 tests unchanged and passing):** destination
+  query parsing now uses `parseListQuery`; destination/search/district chips use `filterChips`; destination
+  filters and chip labels use the existing `geography.adapter` (it was committed but unused);
+  `DestinationOverview`, `DestinationGallery`, `DestinationReviews` delegate to the shared sections; the booking
+  badge, plurals and package duration have one implementation each; the e2e suites share `src/tests/e2e/helpers.js`
+  (axe, Mailpit token, BFF client) instead of four copies.
+- **Destination pages:** "See all N experiences/guides" links to the filtered lists; stays link to the district's
+  stays without a count because the destination's stay section also includes stays within 25 km (W46).
+- **Contracts used:** `GET /properties`, `/properties/{slug}`, `/properties/{id}/availability`, `/guides`,
+  `/guides/{id}`, `/guides/{id}/availability`, `/languages`, `/experiences`, `/experiences/{slug}`,
+  `/experiences/{id}/availability`, `/packages`, `/packages/{slug}`, `/packages/{id}/availability`, `/reviews`.
+  Not used (data already in the detail DTO, or no matching filter): `/properties/{id}/rooms`, `/amenities`,
+  `/guides/{id}/services`, `/experiences/{id}/sessions`, `/packages/{id}/departures` (W45). No new BFF routes; no
+  backend file changed.
+- **Decisions:** W44–W47. Booking widgets are Phase 6; the detail pages show availability only.
+
+### Phase 5b verification (executed 2026-10-18, Docker)
+
+- `npm run lint` → 0 ✅ · `npm test` → **22 files, 296 tests, 296 pass** ✅ (adds 38: list URL parsing for all four
+  types with every out-of-contract value dropped; offered sorts and stay types checked against
+  `docs/api/openapi.json`; stay/guide/session/departure form rules mirroring backend limits; Jharkhand-time
+  dates across midnight and month/year ends; cancellation tier text; seat status from API flags only; guide slot
+  grouping; 422/404/429 error text without internals; server fetchers cached, 404 → null, malformed slugs/ids
+  never sent, 503 propagated; review subject validation; sitemap entries; filter form fields and kept URL-only
+  filters; filtered vs unfiltered empty states; listing count/chips/pagination; stay availability request on
+  load, rooms with API totals, no price on unbookable rooms, local validation before any request, Retry-After
+  message; guide window request, day grouping, blocked windows, > 92-day refusal; session request with
+  Jharkhand-midnight window, seat states, group-limit warning; departure request and re-check; rooms/amenities/
+  policies/facts/services/itinerary/inclusions show only API data; destination "see all" links; axe on every
+  interactive component).
+- Production build ✅ (all 8 new routes dynamic); bundle check **84 client-visible files clean** ✅
+- Playwright on the production build against the real backend → **41 passed** ✅ — the full set: Phase 1–4 suites,
+  `cms.spec.js` (first run since the incident), Phase 5 discovery, and the new `supply.spec.js` (7): real supply
+  created through partner and admin APIs (W47); stays search → type filter → empty state → chip removal → map
+  marker, `noindex` on filtered lists, axe clean; stay detail facts/rooms/amenities/policies, live availability
+  from `/properties/:id/availability` (3 rooms left, ₹2,000), 4 rooms → "Not available", "No reviews yet", axe
+  clean, unknown slug 404; guides language filter → profile → services → the published window on its date, axe
+  clean, malformed id 404; experiences destination chip → 4 seats for 2 people, "Only 4 seats left" for 5, 9
+  people refused locally, axe clean; packages sort in the URL → itinerary with destination link, inclusions,
+  departure dates and seats, re-check for 7, axe clean; 375 px stay page without horizontal scroll; sitemap
+  lists the new pages. Afterwards the stay, guide, experience, package and partner were confirmed `suspended` in
+  the database.
+- Issues found and fixed: the e2e sign-in helper sent the whole account object (strict login schema → 422);
+  `₹2,000` matched both the room total and the collapsed nightly table (locator narrowed); the itinerary heading's
+  hidden separator produced "Day 1 · : …" for screen readers (simplified); unit workers timed out while the dev
+  server's polling watcher used 1.1 GB/45 % CPU of the Docker VM (dev server stopped during test runs).
+
+## Development database recovery (2026-10-18)
+
+- Removed the four backend-test fixture destinations left by the 2026-10-17 incident (`hundru-falls`,
+  `dassam-falls`, `ranchi-lake`, `draft-falls`, identified by their fixture text; no dependent supply existed),
+  then ran the documented `docker compose run --rm api npm run db:seed`: bootstrap super admin restored, eight
+  demo destinations re-created, reference data unchanged (idempotent seeds).
+- `cms.spec.js` then ran with `E2E_ADMIN_EMAIL`/`E2E_ADMIN_PASSWORD` taken from the root `.env` in the shell → **2
+  passed**, closing Phase 4 verification.
+- Not restored (gone since the incident, not re-creatable from seeds): audit history before 2026-10-17 09:32 and
+  any pre-incident partner/booking/CMS/media rows. The 15 Oct backup is still available if those are needed.
 
 ## Phase 5 — delivered (2026-10-17)
 
@@ -67,7 +139,8 @@ Operation counts per phase come from [API_MAPPING.md](API_MAPPING.md) and add up
   filter in the URL, no-results state, axe clean; mobile filter drawer, no horizontal scroll; explore near me →
   `/search/nearby` 200 → cards + map (device position stubbed, W43); sitemap/robots absolute URLs). OSM tile
   requests are answered locally in tests.
-- **Still not run:** `cms.spec.js` (Phase 4) — the dev database still has no admin account (incident below).
+- **Still not run (at the time):** `cms.spec.js` (Phase 4) — the dev database had no admin account (incident
+  below). Run and passed on 2026-10-18 after the recovery.
 - Issues found and fixed: stale dev `node_modules` after adding Leaflet (container recreated with fresh
   volumes); Escape in the search box also cleared the query (Chrome search-field default) — now only closes the
   suggestions; the Phase 4 CMS test needed the app providers for the shared search; an import cycle between the
@@ -113,9 +186,9 @@ Operation counts per phase come from [API_MAPPING.md](API_MAPPING.md) and add up
 - Playwright on the production build against the real backend → **24 passed** (Phase 1–3 suites + new public
   suite: homepage one h1/header/footer/skip link and axe WCAG 2.2 AA; desktop nav with account actions; mobile
   no horizontal scroll, drawer, Escape returns focus; CMS 404; robots) ✅
-- **Not run:** `cms.spec.js` (admin creates, publishes, renders and archives a landing page with live sections).
-  The dev database lost its admin account in the incident below; the owner is handling recovery. Run it with
-  `E2E_ADMIN_EMAIL`/`E2E_ADMIN_PASSWORD` once an admin exists.
+- **Not run at delivery:** `cms.spec.js` (admin creates, publishes, renders and archives a landing page with live
+  sections) — the dev database had lost its admin account in the incident below. **Run on 2026-10-18 after the
+  recovery → 2 passed** (see "Development database recovery").
 - Issues found and fixed: missing spaces in accessible names (external nav/Markdown links, category tiles);
   build failures from build-time prerendering reading runtime config (robots, root metadata, homepage — the
   layout's catch-all hid Next's dynamic signal; now only `BffError` is caught); `ImageFrame` aspect-ratio
@@ -332,10 +405,11 @@ CMS_CONTRACTS,PERMISSIONS_MATRIX,DECISIONS,IMPLEMENTATION_STATUS}.md`, `frontend
 
 ## Pending / needs owner input
 
-- Approve Phase 4 (decisions W37–W39, backend B14) and Phase 5 (W40–W43).
+- Approve Phase 5b (decisions W44–W47). Phases 4 and 5 were approved on 2026-10-18.
 - Before launch: replace the OpenStreetMap tile URL with a dedicated provider (`src/config/maps.js`, OSM tile
   usage policy).
-- Recover the development database (incident 2026-10-17), then run `cms.spec.js` to close Phase 4 verification.
+- Full browser runs (CMS and supply suites) need the admin credentials in the shell:
+  `$env:E2E_ADMIN_EMAIL='…'; $env:E2E_ADMIN_PASSWORD='…'` before the `e2e` run (W39, W47).
 - Before production (Phase 10): set `TRUSTED_PROXY_HOPS` for the edge topology; multiple `web` instances would
   need shared refresh coordination (WO7).
 - Logo artwork (WO5 otherwise resolved).
